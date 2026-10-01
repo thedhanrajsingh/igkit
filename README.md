@@ -10,6 +10,8 @@ A free ManyChat and Linktree alternative.
 
 </div>
 
+![IGKit dashboard](docs/images/dashboard.png)
+
 Someone comments `LINK` on your reel, and IGKit queues a DM with your link. That is the whole idea. IGKit watches the comments on your Instagram posts, and when a comment matches a keyword you set, it sends that person a private reply through the official Meta API. You can also post a public reply under the comment at the same time.
 
 IGKit is free, MIT-licensed software running on your own infrastructure, with no software seat limits or plan caps. Hosting and optional provider costs are separate.
