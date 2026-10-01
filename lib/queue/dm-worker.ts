@@ -61,7 +61,7 @@ const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 //
 // `is_user_follow_business` does not reflect a brand-new follow right away, and
 // the follow gate asks people to follow and tap a button that is sitting in
-// front of them — so tapping seconds after following is the normal case, not
+// front of them, so tapping seconds after following is the normal case, not
 // the exception. Rejecting on the first `false` therefore turns away the exact
 // people who did what was asked, and they get told to follow an account they
 // already follow.
@@ -84,7 +84,7 @@ const FOLLOW_RECHECK_TOTAL_MS = FOLLOW_RECHECK_DELAYS_MS.reduce(
  * Sends Meta answered with an error but may well have delivered anyway.
  *
  * Meta returns the generic code 1 OAuthException on /messages *after* the DM
- * has reached the recipient — observed in production: a user tapped the reply's
+ * has reached the recipient, observed in production: a user tapped the reply's
  * button 30 seconds after a send this worker had already marked FAILED. Logging
  * that as a plain failure is harmful twice over: the job is retried (up to
  * BACKOFF_DELAYS.length times, each retry another copy in the same inbox), and
@@ -94,7 +94,7 @@ const FOLLOW_RECHECK_TOTAL_MS = FOLLOW_RECHECK_DELAYS_MS.reduce(
  *
  * Flagging it as unconfirmed instead is exactly what dmDeliveryUnconfirmed is
  * for: the sweep's dedup already treats that as handled, and processComment
- * skips a DM whose delivery is unconfirmed. The trade-off is deliberate — a
+ * skips a DM whose delivery is unconfirmed. The trade-off is deliberate, a
  * code 1 that really did fail means that person gets no DM and can comment
  * again, which is far better than spamming someone who already received it.
  */
@@ -111,7 +111,7 @@ function formatError(error: unknown): string {
 
 // Meta rejections that a plain-text retry cannot fix: the send was refused for
 // the conversation, not for the button template. Retrying as text just burns
-// the attempt and — worse — overwrites the real error with a misleading one
+// the attempt and, worse, overwrites the real error with a misleading one
 // ("invalid for a private reply", because the first attempt already used up the
 // comment's single allowed private reply).
 const NON_TEMPLATE_REJECTIONS = [
@@ -185,7 +185,7 @@ type RevealAutomation = {
 
 /**
  * Deliver a campaign's reveal message as a direct message. Shared by the
- * button-tap (postback) path and the DM keyword-trigger path — both already
+ * button-tap (postback) path and the DM keyword-trigger path, both already
  * have an open conversation with the user, so neither uses a private reply.
  */
 async function sendRevealDirectMessage({
@@ -432,7 +432,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       update: {},
     });
 
-    // Public reply leg — decoupled from the DM and posted first so a DM failure
+    // Public reply leg, decoupled from the DM and posted first so a DM failure
     // (e.g. a non-follower whose messaging is restricted) never suppresses it.
     // Idempotent across retries via publicReplySentAt.
     const replyPool =
@@ -490,13 +490,13 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     // this run needed. Don't re-send the DM.
     if (!needsDm) continue;
 
-    // Meta allows exactly ONE private reply per comment, ever — across every
+    // Meta allows exactly ONE private reply per comment, ever, across every
     // campaign. When several campaigns match the same comment (duplicated
     // campaigns, or an any-post campaign overlapping a post-specific one), only
     // the first can deliver; the rest would fail with "The comment is invalid
     // for a private reply". Skip them explicitly instead of burning an API call
     // and logging a failure the user can do nothing about. The public reply
-    // above still goes out per campaign — only the DM leg is deduped.
+    // above still goes out per campaign, only the DM leg is deduped.
     const privateReplyUsedBy = await prisma.dmLog.findFirst({
       where: {
         commentId,
@@ -952,9 +952,9 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
   // Follow-gate: before revealing the link, verify the user follows. On a
   // `followcheck:` tap a non-follower gets the prompt again (no quota spent);
-  // on a read fallback a non-follower is silently skipped — the gate must not
+  // on a read fallback a non-follower is silently skipped, the gate must not
   // be bypassable by just reading the DM and waiting. On a tap, following or
-  // unverifiable (null) falls through and delivers the link — fail-open so a
+  // unverifiable (null) falls through and delivers the link, fail-open so a
   // real follower is never trapped.
   if ((isFollowCheck || fallback) && automation.requireFollow) {
     const follows = await getUserFollowStatus({
@@ -969,8 +969,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     if (follows === false) {
       if (fallback) return;
 
-      // A tap on an opening-DM button is not a claim to follow — most people
-      // who tap it simply don't follow yet — so they get the follow prompt
+      // A tap on an opening-DM button is not a claim to follow, most people
+      // who tap it simply don't follow yet, so they get the follow prompt
       // right away. Only the prompt's own button earns the delayed re-check;
       // holding an opening tap for it left people staring at a silent chat.
       if (!fromOpeningDm) {
@@ -980,7 +980,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
         // The job id is bucketed by the recheck window, not fixed per user.
         // BullMQ keeps completed jobs (removeOnComplete: count 1000) and silently
         // drops an add whose id is still retained, so a fixed id let a person be
-        // re-checked once and then never again — their next false tap did
+        // re-checked once and then never again, their next false tap did
         // nothing at all, no link and no prompt. Bucketing still collapses a burst
         // of taps into a single re-check, which is what the fixed id was for.
         //
@@ -1015,7 +1015,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           return;
         }
 
-        // Last `false`: they are genuinely not following. Record it — this
+        // Last `false`: they are genuinely not following. Record it, this
         // branch used to return without writing anything at all, so a gate that
         // turned people away left no trace and its rejection rate could not be
         // measured, only guessed at from complaints.
@@ -1164,7 +1164,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     // opening DM and never tapped the button, which means they never messaged
     // us, which means the 24-hour window is closed and Meta rejects the send
     // ("outside of allowed window"). That is the expected outcome here, not a
-    // failure the user can act on — so don't log it as FAILED and don't retry
+    // failure the user can act on, so don't log it as FAILED and don't retry
     // it against a window that cannot reopen on its own. It still delivers in
     // the case that does work: the user replied by typing instead of tapping.
     if (fallback && !isDeliveryUnconfirmed(error)) {
@@ -1306,7 +1306,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       },
     });
 
-    // Already replied to this message (or deliberately skipped it) — a retry
+    // Already replied to this message (or deliberately skipped it), a retry
     // of the job must not send a second DM.
     if (
       existingLog?.status === "SENT" ||
@@ -1375,7 +1375,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     }
 
     // Reuse a name captured on an earlier interaction so {username} still
-    // renders — the messages webhook carries only the sender's IGSID.
+    // renders, the messages webhook carries only the sender's IGSID.
     const priorLog = await prisma.dmLog.findFirst({
       where: { automationId: automation.id, commenterId: senderId },
       select: { commenterName: true },
@@ -1384,7 +1384,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
 
     // Follow gate: anyone not confirmed as a follower gets the prompt instead of
     // the link, with the same `followcheck:` button that re-verifies on tap.
-    // `null` (unverifiable) prompts too — this is first contact, exactly like a
+    // `null` (unverifiable) prompts too, this is first contact, exactly like a
     // comment, so it follows processComment's fail-closed rule rather than the
     // postback path's fail-open one. Fail-open is only safe after a tap, where
     // the user has already claimed to follow; here it would hand the link to
@@ -1450,7 +1450,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
 
         // The link has been delivered, so the appreciation follow-up applies
         // here exactly as it does after a button tap. Not scheduled behind the
-        // follow prompt — no link went out yet in that branch.
+        // follow prompt, no link went out yet in that branch.
         if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
           await getDMQueue().add(
             FOLLOWUP_JOB_NAME,

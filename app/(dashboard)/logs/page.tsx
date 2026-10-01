@@ -203,7 +203,7 @@ export default function LogsPage() {
         {pagination && pagination.totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-t border-border sm:px-6">
             <p className="text-xs text-muted">
-              {t("Showing {start}–{end} of {total}", {
+              {t("Showing {start}-{end} of {total}", {
                 start: (pagination.page - 1) * pagination.limit + 1,
                 end: Math.min(pagination.page * pagination.limit, pagination.total),
                 total: pagination.total,

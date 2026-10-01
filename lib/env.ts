@@ -41,7 +41,7 @@ export function getMissingInstagramOAuthEnv(): string[] {
     const value = process.env[name];
     if (!value) return true;
     // A malformed key fails later inside encryptToken, after the user has
-    // already round-tripped through Meta — catch the bad format here instead.
+    // already round-tripped through Meta, catch the bad format here instead.
     return name === "ENCRYPTION_KEY" && !HEX_32_BYTE.test(value);
   });
 }
@@ -53,7 +53,7 @@ export function getMetaGraphApiVersion(): string {
 /**
  * The public demo, and the only host where sign-in is blocked. This repo is
  * something other people clone and deploy; a self-hoster's own domain must
- * never match this and must never be blocked from logging in — that's the
+ * never match this and must never be blocked from logging in, that's the
  * entire point of self-hosting. Keep this in sync with
  * components/demo-notice.tsx, which uses the same host for its banner.
  */
@@ -61,7 +61,7 @@ export const DEMO_HOST = "demo.igkit.invalid";
 
 /**
  * True when the current request is hitting the public demo host. Sign-in is
- * blocked there so the demo can't be mistaken for a real account — anyone who
+ * blocked there so the demo can't be mistaken for a real account, anyone who
  * wants an account instead clones the repo and runs their own instance.
  *
  * Reads the incoming Host header rather than NEXTAUTH_URL/an env flag, so a

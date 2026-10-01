@@ -41,7 +41,7 @@ async function checkRedis(): Promise<HealthCheck> {
 
 // A fresh heartbeat does not mean the worker is still doing anything. The
 // heartbeat runs on its own interval, so BullMQ's consumer can stop taking jobs
-// — a dropped queue connection, a crashed consumer loop — while the process,
+//, a dropped queue connection, a crashed consumer loop, while the process,
 // and its heartbeat, stay perfectly alive. Health then keeps answering 200
 // while the backlog grows and nobody is served. Seen in production: 385 jobs
 // waiting for hours behind an uptime monitor that never once alerted.
@@ -67,7 +67,7 @@ async function checkQueue(): Promise<HealthCheck & { counts?: unknown }> {
     if (waiting >= STUCK_QUEUE_MIN_WAITING && active === 0) {
       return {
         status: "error",
-        detail: `${waiting} jobs waiting with none active — the worker is not consuming`,
+        detail: `${waiting} jobs waiting with none active, the worker is not consuming`,
         counts,
       };
     }

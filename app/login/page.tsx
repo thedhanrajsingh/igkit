@@ -37,7 +37,7 @@ export default async function LoginPage({
               {t("Sign-in is off on this demo")}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted">
-              {t("This is the public demo — it doesn’t create real accounts or send DMs. To use IGKit for real, clone it and run your own instance with your own Meta app and domain.")}
+              {t("This is the public demo. It doesn’t create real accounts or send DMs. To use IGKit for real, clone it and run your own instance with your own Meta app and domain.")}
             </p>
             <a
               href={SETUP_DOCS_URL}

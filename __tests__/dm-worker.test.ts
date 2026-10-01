@@ -290,7 +290,7 @@ beforeEach(() => {
   mockGetUserFollowStatus.mockResolvedValue(true);
 });
 
-describe("DM Worker — comments left on an ad", () => {
+describe("DM Worker, comments left on an ad", () => {
   it("also matches the organic post the ad was created from", async () => {
     const processor = getProcessor();
 
@@ -320,7 +320,7 @@ describe("DM Worker — comments left on an ad", () => {
   });
 });
 
-describe("DM Worker — Full Pipeline", () => {
+describe("DM Worker, Full Pipeline", () => {
   it("should send a private reply for a matching comment", async () => {
     const processor = getProcessor();
 
@@ -892,7 +892,7 @@ describe("DM Worker — Full Pipeline", () => {
   });
 });
 
-describe("DM Worker — one private reply per comment", () => {
+describe("DM Worker, one private reply per comment", () => {
   it("should skip a campaign when another already used the comment's private reply", async () => {
     mockPrisma.dmLog.findFirst.mockImplementation(
       async (args: { where?: { status?: string } } = {}) =>
@@ -984,7 +984,7 @@ describe("DM Worker — one private reply per comment", () => {
   });
 });
 
-describe("DM Worker — DM keyword trigger", () => {
+describe("DM Worker, DM keyword trigger", () => {
   const dmTriggerAutomation = {
     ...mockAutomation,
     dmTriggerEnabled: true,
@@ -1030,7 +1030,7 @@ describe("DM Worker — DM keyword trigger", () => {
       "commenter_999",
       "Hey commenter_user! Here is the link: https://example.com"
     );
-    // Never a private reply — there is no comment to reply to.
+    // Never a private reply, there is no comment to reply to.
     expect(mockSendPrivateReply).not.toHaveBeenCalled();
   });
 
@@ -1419,8 +1419,8 @@ describe("durable Zernio postback delivery", () => {
     try {
       const process = getProcessor();
       const followTap = tap("follow");
-      // The prompt goes out on the last delayed re-check — an earlier false
-      // only queues the next one — so exercise that pass: that is where the
+      // The prompt goes out on the last delayed re-check, an earlier false
+      // only queues the next one, so exercise that pass: that is where the
       // prompt is sent, and where a redelivery must not send it a second time.
       followTap.data = {
         ...followTap.data,
@@ -1439,7 +1439,7 @@ describe("durable Zernio postback delivery", () => {
   });
 });
 
-describe("DM Worker — follow-gate re-check", () => {
+describe("DM Worker, follow-gate re-check", () => {
   const gated = { ...mockAutomation, requireFollow: true, trackedLinks: [] };
 
   it("re-checks a first false follow later instead of rejecting the tap", async () => {
@@ -1585,7 +1585,7 @@ describe("DM Worker — follow-gate re-check", () => {
   });
 });
 
-describe("DM Worker — follow re-check acknowledgement", () => {
+describe("DM Worker, follow re-check acknowledgement", () => {
   const gated = { ...mockAutomation, requireFollow: true, trackedLinks: [] };
   const tap = {
     instagramAccountId: "ig_456",

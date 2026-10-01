@@ -340,7 +340,7 @@ export default function SettingsPage() {
               {t("DMs sent this month")}
             </p>
             <p className="text-xs text-muted mt-0.5">
-              {t("Self-hosted — no plan limits.")}
+              {t("Self-hosted, no plan limits.")}
             </p>
           </div>
           <span className="text-sm font-semibold text-foreground">

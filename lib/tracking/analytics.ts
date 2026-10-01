@@ -24,7 +24,7 @@ function getCount(value: StatusCountRow["_count"] | KeywordCountRow["_count"]) {
 export function calculateCtr(clicks: number, sent: number) {
   if (sent <= 0) return 0;
   // Raw clicks can exceed sends (repeat clicks, link-preview bots hitting the
-  // tracked URL), which makes a "rate" over 100% — cap it so CTR stays sane.
+  // tracked URL), which makes a "rate" over 100%, cap it so CTR stays sane.
   return Math.min(100, Number(((clicks / sent) * 100).toFixed(1)));
 }
 

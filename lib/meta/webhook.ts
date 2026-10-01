@@ -8,7 +8,7 @@ export function verifyWebhookSignature(
 
   // Instagram-Login apps sign webhooks with the Instagram app secret, while
   // Facebook-Login apps use the Facebook app secret. Both belong to the same
-  // app, so accept a signature that matches either — this avoids a config
+  // app, so accept a signature that matches either, this avoids a config
   // guess about which key Meta uses for a given app type.
   const secrets = [
     process.env.FACEBOOK_APP_SECRET,
@@ -201,7 +201,7 @@ export function parsePostbackEvents(
  *
  * Echoes (messages the account itself sent, including our own autoreplies),
  * deletions, and attachment-only messages with no text are dropped here so
- * the worker never sees them — an echo would otherwise let an autoreply
+ * the worker never sees them, an echo would otherwise let an autoreply
  * containing its own keyword trigger itself.
  */
 export function parseMessageEvents(

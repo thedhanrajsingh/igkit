@@ -67,7 +67,7 @@ export function DemoNotice({ variant }: { variant: "banner" | "panel" }) {
     return (
       <div className="relative border-b border-orange-200 bg-orange-50">
         <p className="mx-auto w-full max-w-6xl px-10 py-2 text-center text-xs leading-5 text-zinc-700 sm:px-14 sm:text-sm">
-          <span className="font-bold text-zinc-900">{DEMO_HOST}</span> {t("is a demo. IGKit is self-hosted — signing in here will not send DMs for your account.")}{" "}
+          <span className="font-bold text-zinc-900">{DEMO_HOST}</span> {t("is a demo. IGKit is self-hosted. Signing in here will not send DMs for your account.")}{" "}
           <a
             href={SETUP_DOCS_URL}
             target="_blank"

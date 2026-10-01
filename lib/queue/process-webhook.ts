@@ -112,7 +112,7 @@ export async function processInstagramWebhook({ payload: incoming, provider, wor
         {
           // Message ids can contain characters BullMQ rejects in a job id (":"
           // in particular). base64url encodes into exactly the allowed alphabet
-          // and stays injective — substituting invalid characters would let two
+          // and stays injective, substituting invalid characters would let two
           // distinct mids collapse onto one job id, silently dropping a reply.
           jobId: `message_${event.instagramAccountId}_${Buffer.from(
             event.messageId

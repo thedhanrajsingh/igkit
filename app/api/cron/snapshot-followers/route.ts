@@ -12,7 +12,7 @@ import {
  *
  * Instagram retains only ~30 days of account insights, so this job is the only
  * source of longer-range follower history. Missing a run loses that day
- * permanently — there is no way to backfill beyond the insights window.
+ * permanently, there is no way to backfill beyond the insights window.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
