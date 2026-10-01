@@ -173,6 +173,18 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // The equal-length window before this week, for the week-over-week change.
+  const prevWeekStart = new Date(weekStart);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const dmsSentPrevWeek = await prisma.dmLog.count({
+    where: {
+      workspaceId,
+      status: "SENT",
+      createdAt: { gte: prevWeekStart, lt: weekStart },
+      ...accountFilter,
+    },
+  });
+
   const monthlyStatusSummary = summarizeDmStatuses(
     dmStatusCountsThisMonth.map((row) => ({
       status: row.status,
@@ -204,6 +216,7 @@ export async function GET(request: NextRequest) {
       activeAutomations,
       dmsSentToday,
       dmsSentWeek,
+      dmsSentPrevWeek,
       dmsSentMonth,
       dmsSkippedMonth: monthlyStatusSummary.skipped,
       dmsFailedMonth: monthlyStatusSummary.failed,

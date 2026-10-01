@@ -31,11 +31,10 @@ export interface FollowerChartPoint {
   delta: number | null;
 }
 
-// Colors read against the light chart surface (#ffffff): the accent line clears
-// 3:1 contrast and grid/axis text match the muted/border tokens. See globals.css.
-const SERIES_COLOR = "#f97316";
-const GRID_COLOR = "#e4e4e7";
-const AXIS_TEXT = "#71717a";
+// Theme tokens from globals.css, so the chart follows the app's dark panels.
+const SERIES_COLOR = "var(--accent)";
+const GRID_COLOR = "var(--line)";
+const AXIS_TEXT = "var(--ink-muted)";
 
 function formatCompact(n: number, locale: Locale): string {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

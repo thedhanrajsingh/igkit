@@ -13,7 +13,7 @@ import Image from "next/image";
 import { zernioLink } from "@/lib/zernio-links";
 import { usePathname } from "next/navigation";
 
-const navItems = [
+export const navItems = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Overview", href: "/overview" },
   { label: "Inbox", href: "/inbox" },
@@ -43,18 +43,21 @@ export default function Sidebar({
       {/* Mobile overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/70"
           onClick={onClose}
         />
       )}
 
       <aside
+        // Drawer at every width: wide screens navigate with the pill bar in
+        // the header, narrower ones open this from the Menu button.
         className={`
-          fixed top-0 left-0 z-50 h-dvh w-64 max-w-[85vw] shrink-0 bg-surface border-r border-border flex flex-col
-          transition-transform duration-200 ease-out
-          lg:h-full lg:translate-x-0 lg:static lg:z-auto
+          fixed top-0 left-0 z-50 h-dvh w-72 max-w-[85vw] shrink-0 bg-panel border-r border-border flex flex-col
+          transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
         `}
+        aria-hidden={!isOpen}
+        inert={!isOpen}
       >
         {/* Same reason as the top bar: the drawer is full height, so the
             wordmark would otherwise land under the status bar. */}
@@ -78,11 +81,11 @@ export default function Sidebar({
                 onClick={onClose}
                 aria-current={isActive ? "page" : undefined}
                 className={`
-                  block px-3 py-2.5 rounded text-sm
+                  block px-4 py-2.5 rounded-full text-sm transition-colors
                   ${
                     isActive
-                      ? "bg-surface-hover text-foreground font-medium"
-                      : "text-muted hover:text-foreground hover:bg-surface-hover"
+                      ? "bg-foreground text-background font-medium"
+                      : "text-muted hover:text-foreground hover:bg-surface"
                   }
                 `}
               >

@@ -464,5 +464,17 @@
   "Theme": "主題",
   "Title": "標題",
   "View page": "查看頁面",
-  "Visible": "顯示"
+  "Visible": "顯示",
+  "DMs sent, last 7 days": "近 7 天已發送私訊",
+  "Delivery rate": "送達率",
+  "Delivery this month": "本月發送狀況",
+  "No DMs sent in the last 7 days": "近 7 天沒有發送私訊",
+  "No DMs sent this month yet": "本月尚未發送私訊",
+  "Sent today": "今日已發送",
+  "down": "下降",
+  "up": "上升",
+  "vs. the 7 days before": "與前 7 天相比",
+  "{count} DM sent": "已發送 {count} 則私訊",
+  "{count} DMs sent": "已發送 {count} 則私訊",
+  "{count} failed this month": "本月失敗 {count} 則"
 }

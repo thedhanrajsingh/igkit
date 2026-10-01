@@ -79,8 +79,8 @@ export default function OverviewPage() {
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         {[...Array(6)].map((_, i) => (
           <div key={i} className="panel rounded p-4 h-24 sm:p-5">
-            <div className="h-4 w-16 bg-zinc-200 rounded" />
-            <div className="mt-3 h-6 w-20 bg-zinc-200/60 rounded" />
+            <div className="h-4 w-16 bg-surface-hover rounded" />
+            <div className="mt-3 h-6 w-20 bg-surface-hover/60 rounded" />
           </div>
         ))}
       </div>
