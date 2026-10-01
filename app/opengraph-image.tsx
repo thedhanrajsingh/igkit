@@ -11,7 +11,7 @@ export default function OpengraphImage() {
         <div style={{ fontSize: 40, fontWeight: 700, display: "flex" }}>IGKit</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <div style={{ fontSize: 72, fontWeight: 700, lineHeight: 1.05, maxWidth: 900 }}>Comment a keyword. Get the DM.</div>
-          <div style={{ fontSize: 32, color: "#a1a1a8" }}>Open-source, self-hosted ManyChat alternative for Instagram.</div>
+          <div style={{ fontSize: 32, color: "#a1a1a8" }}>A free ManyChat and Linktree alternative.</div>
         </div>
         <div style={{ display: "flex", height: 16, width: 240, borderRadius: 999, background: "#d9370f" }} />
       </div>

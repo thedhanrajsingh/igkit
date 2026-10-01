@@ -8,7 +8,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(getBaseUrl()),
   title: {
-    default: "IGKit - Open source Instagram comment-to-DM automation",
+    default: "IGKit - A free ManyChat and Linktree alternative",
     template: "%s | IGKit",
   },
   description: SITE_DESCRIPTION,
@@ -21,6 +21,7 @@ export const metadata: Metadata = {
     "instagram private replies",
     "social commerce",
     "manychat alternative",
+    "linktree alternative",
     "link in bio",
     "open source",
   ],

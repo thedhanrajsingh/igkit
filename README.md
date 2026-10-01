@@ -2,7 +2,7 @@
 
 # IGKit
 
-Open-sourced ManyChat for Instagram comment-to-DM automation.
+A free ManyChat and Linktree alternative.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/thedhanrajsingh/igkit?style=flat&color=black)](https://github.com/thedhanrajsingh/igkit/stargazers)

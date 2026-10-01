@@ -8,7 +8,7 @@ import { ensureWorkspaceForUser } from "@/lib/workspace";
 
 export async function generateMetadata() {
   const { t } = await getI18n();
-  return { title: t("IGKit - Open source Instagram comment-to-DM automation") };
+  return { title: t("IGKit - A free ManyChat and Linktree alternative") };
 }
 
 export default async function DashboardLayout({

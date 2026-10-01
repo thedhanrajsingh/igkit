@@ -43,10 +43,10 @@ async function getGitHubStars(): Promise<number | null> {
 }
 
 export const metadata: Metadata = {
-  title: { absolute: "IGKit - Open source Instagram comment-to-DM automation" },
+  title: { absolute: "IGKit - A free ManyChat and Linktree alternative" },
   alternates: { canonical: "/" },
   description:
-    "A free, self-hosted ManyChat alternative. Turn Instagram keyword comments into automatic private replies. Connect through your own Meta app or optional paid provider Zernio.",
+    "A free ManyChat and Linktree alternative. Turn Instagram keyword comments into automatic DMs and share every link from one bio page. Open source and self-hosted.",
 };
 
 function SponsorCredit({ placement }: { placement: string }) {
@@ -483,7 +483,7 @@ export default async function Home() {
               <Link href="/" className="or-wordmark">
                 IGKit<span aria-hidden="true">↗</span>
               </Link>
-              <p>Open source Instagram comment-to-DM automation.</p>
+              <p>A free ManyChat and Linktree alternative.</p>
             </div>
             <nav aria-label="Footer navigation">
               <a href={GITHUB_URL}>GitHub</a>
