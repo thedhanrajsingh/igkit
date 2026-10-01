@@ -85,6 +85,7 @@ model Workspace {
   linkClicks        LinkClick[]
   webhookEvents     WebhookEvent[]
   operationalEvents OperationalEvent[]
+  bioPage           BioPage?
 
   @@index([ownerId])
 }
@@ -415,4 +416,36 @@ model ZernioConnection {
 model PostbackDelivery {
   id String @id
   createdAt DateTime @default(now())
+}
+
+/// Public link-in-bio page, one per workspace, served at /<handle>.
+model BioPage {
+  id          String   @id @default(cuid())
+  workspaceId String   @unique
+  handle      String   @unique
+  title       String
+  bio         String?
+  avatarUrl   String?
+  theme       String   @default("light")
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  links     BioLink[]
+}
+
+model BioLink {
+  id        String   @id @default(cuid())
+  bioPageId String
+  title     String
+  url       String
+  position  Int      @default(0)
+  isActive  Boolean  @default(true)
+  clicks    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  bioPage BioPage @relation(fields: [bioPageId], references: [id], onDelete: Cascade)
+
+  @@index([bioPageId, position])
 }
