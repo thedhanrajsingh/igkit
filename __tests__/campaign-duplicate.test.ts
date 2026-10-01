@@ -105,13 +105,10 @@ describe("duplicateCampaign", () => {
     });
 
     expect(createArgs().data).toMatchObject({
-      // "Also reply when someone DMs these words".
       dmTriggerEnabled: true,
-      // The follow-up thank-you message.
       followUpEnabled: true,
       followUpMessage: "Thanks for grabbing it!",
       followUpDelayMinutes: 30,
-      // The primary link button title.
       linkButtonLabel: "Get offer",
       goal: "Product link request",
       reportShareEnabled: false,

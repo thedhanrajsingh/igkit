@@ -1,9 +1,4 @@
-/**
- * Rate Limiter, Unit Tests
- *
- * Tests the hourly private-reply cap enforcement using mocked Redis.
- * Assertions derive from RATE_LIMIT_MAX so they survive a change to the cap.
- */
+// Assertions derive from RATE_LIMIT_MAX so they survive a change to the cap.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 

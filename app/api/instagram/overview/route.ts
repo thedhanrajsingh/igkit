@@ -15,17 +15,13 @@ import {
   type FollowerHistoryPoint,
 } from "@/lib/reports/follower-history";
 
-// Allow time for paginated media + per-post insight calls on larger accounts.
 export const maxDuration = 60;
 
-// Safety ceiling for "all time": bounds pagination and the number of
-// per-media insight requests so we can't hammer the API or time out.
+// Ceiling for "all time" so per-media insight requests can't hammer the API or time out.
 const MAX_POSTS = 500;
 
-// How many insight requests to run at once.
 const INSIGHTS_CONCURRENCY = 8;
 
-/** Map over items with a bounded number of in-flight async operations. */
 async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -69,12 +65,8 @@ export interface OverviewResponse {
   requestedCount: "all" | number;
   truncated: boolean;
   insightsAvailable: boolean;
-  /** Current follower total, or null if Instagram did not return it. */
   followers: number | null;
-  /**
-   * Follower total per day, ascending. Independent of the selected post range,
-   * limited to what has been snapshotted plus any 30-day insights backfill.
-   */
+  /** Ascending, independent of the post range: snapshots plus any 30-day backfill. */
   followerHistory: FollowerHistoryPoint[];
   totals: {
     posts: number;
@@ -123,7 +115,6 @@ export async function GET(request: NextRequest) {
   try {
     const accessToken = await createInstagramContext(account);
 
-    // `count` is either "all" or a positive integer (last N posts).
     const countParam = request.nextUrl.searchParams.get("count");
     const isAll = countParam === "all";
     const parsedCount = countParam ? Number.parseInt(countParam, 10) : NaN;
@@ -142,10 +133,8 @@ export async function GET(request: NextRequest) {
       media.length >= MAX_POSTS ||
       (account.provider === "ZERNIO" && media.length >= 25);
 
-    // Likes and comments come free with basic media fields. Views / reach /
-    // saved / shares require the insights permission, so fetch them per media
-    // (bounded concurrency) and degrade gracefully if the token was granted
-    // before that scope.
+    // Views/reach/saved/shares need the insights permission; degrade gracefully if the
+    // token predates that scope.
     let insightsAvailable = false;
     let permissionDenied = false;
 
@@ -222,9 +211,8 @@ export async function GET(request: NextRequest) {
       select: { id: true, username: true },
     });
 
-    // Followers is a point-in-time figure and deliberately not part of
-    // `totals`, which sums over the selected posts. A failure here must not
-    // take down the rest of the overview.
+    // Point-in-time, so not part of `totals` (which sums the selected posts). A
+    // failure here must not take down the rest of the overview.
     let followers: number | null = null;
     let followerHistory: FollowerHistoryPoint[] = [];
     try {

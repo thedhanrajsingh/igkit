@@ -7,11 +7,8 @@ import {
 } from "crypto";
 import { getEncryptionKeyHex, requireEnv } from "@/lib/env";
 
-// Instagram API with Instagram Login authorizes on www.instagram.com. The old
-// api.instagram.com/oauth/authorize host belonged to the retired Basic Display
-// API and now 404s ("Sorry, this page isn't available"), which looks like a bad
-// link rather than a wrong endpoint. The token exchange below still lives on
-// api.instagram.com, only the authorize hop moved.
+// Authorize moved to www.instagram.com (the api. host is retired Basic Display
+// and 404s); the token exchange still lives on api.instagram.com.
 const INSTAGRAM_OAUTH_URL = "https://www.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
 const ALGORITHM = "aes-256-gcm";
@@ -24,14 +21,6 @@ interface OAuthStatePayload {
   ts: number;
 }
 
-function base64UrlEncode(value: string): string {
-  return Buffer.from(value).toString("base64url");
-}
-
-function base64UrlDecode(value: string): string {
-  return Buffer.from(value, "base64url").toString("utf8");
-}
-
 function signState(payload: string): string {
   return createHmac("sha256", requireEnv("NEXTAUTH_SECRET"))
     .update(payload)
@@ -39,9 +28,9 @@ function signState(payload: string): string {
 }
 
 export function createOAuthState(workspaceId: string): string {
-  const payload = base64UrlEncode(
+  const payload = Buffer.from(
     JSON.stringify({ workspaceId, ts: Date.now() } satisfies OAuthStatePayload)
-  );
+  ).toString("base64url");
   return `${payload}.${signState(payload)}`;
 }
 
@@ -63,7 +52,7 @@ export function verifyOAuthState(state: string | null): OAuthStatePayload | null
   }
 
   try {
-    const parsed = JSON.parse(base64UrlDecode(payload)) as OAuthStatePayload;
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as OAuthStatePayload;
     if (!parsed.workspaceId || Date.now() - parsed.ts > STATE_MAX_AGE_MS) {
       return null;
     }

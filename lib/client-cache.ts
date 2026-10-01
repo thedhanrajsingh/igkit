@@ -1,11 +1,4 @@
-/**
- * Tiny stale-while-revalidate cache backed by sessionStorage.
- *
- * Instagram API calls (profile picture, the post library) are slow, so we show
- * the last cached copy instantly and refresh in the background. Cache lives for
- * the browser tab session; entries older than the caller's max age are treated
- * as stale (still shown, but the caller should revalidate).
- */
+// Stale-while-revalidate cache in sessionStorage for slow Instagram calls.
 
 interface Entry<T> {
   data: T;

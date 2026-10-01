@@ -1,9 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
-
-function normalizeInviteEmail(email: string) {
-  return email.trim().toLowerCase();
-}
+import { normalizeInvitationEmail } from "@/lib/workspace-invitations";
 
 export async function acceptPendingInvitationsForUser(
   userId: string,
@@ -11,7 +8,7 @@ export async function acceptPendingInvitationsForUser(
 ): Promise<void> {
   if (!email) return;
 
-  const normalizedEmail = normalizeInviteEmail(email);
+  const normalizedEmail = normalizeInvitationEmail(email);
   const now = new Date();
   const invitations = await prisma.workspaceInvitation.findMany({
     where: {

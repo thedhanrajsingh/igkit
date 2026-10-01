@@ -139,14 +139,6 @@
   align-items: center;
   padding-block: 76px 60px;
 }
-.or-eyebrow {
-  font:
-    500 13px/1.5 Menlo,
-    Consolas,
-    monospace;
-  color: var(--or-orange);
-  margin-bottom: 20px !important;
-}
 .or-hero h1 {
   font-size: clamp(44px, 4.7vw, 60px);
   line-height: 1.06;
@@ -498,9 +490,6 @@
   gap: 64px;
   padding: 48px 40px;
 }
-.or-technical .or-eyebrow {
-  color: #e7b591;
-}
 .or-technical p:not(.or-eyebrow) {
   margin-top: 20px;
   color: #bdbdb5;
@@ -708,9 +697,6 @@
   .or-hero h1 {
     font-size: clamp(32px, 9vw, 58px);
   }
-  .or-desktop-break {
-    display: none;
-  }
   .or-lead {
     font-size: 16px;
     max-width: 520px;
@@ -742,9 +728,6 @@
   }
   .or-landing h2 {
     font-size: 28px;
-  }
-  .or-section .or-eyebrow {
-    font-size: 12px;
   }
   .or-feature-grid {
     margin-top: 24px;

@@ -134,9 +134,8 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
-      {/* Surfaces the ?instagram= code the OAuth routes redirect back with.
-          Needs a Suspense boundary: useSearchParams in a prerendered client
-          page fails the production build without one. */}
+      {/* Suspense is required: useSearchParams in a prerendered client page
+          fails the production build without one. */}
       <Suspense fallback={null}>
         <InstagramConnectNotice />
       </Suspense>

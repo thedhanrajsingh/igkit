@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
-import { createInstagramContext } from "@/lib/instagram/provider";
-import { getUserInfo } from "@/lib/instagram/provider";
+import { createInstagramContext, getUserInfo } from "@/lib/instagram/provider";
 import {
   backfillFollowerHistory,
   recordFollowerSnapshot,
 } from "@/lib/reports/follower-history";
 
-/**
- * Records one follower total per connected account per day.
- *
- * Instagram retains only ~30 days of account insights, so this job is the only
- * source of longer-range follower history. Missing a run loses that day
- * permanently, there is no way to backfill beyond the insights window.
- */
+// Instagram keeps only ~30 days of insights, so this daily snapshot is the only long-range
+// follower history: a missed run loses that day permanently.
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET;

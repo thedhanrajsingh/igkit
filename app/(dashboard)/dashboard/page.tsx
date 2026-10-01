@@ -1,12 +1,5 @@
 "use client";
 
-/**
- * Dashboard Home Page
- *
- * Performance panel (month total, four tiles, the 7-day hero chart), the
- * keyword strip, then delivery mix, delivery rate and recent activity.
- */
-
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -18,7 +11,6 @@ import StatusBadge from "@/components/status-badge";
 interface DashboardStats {
   userName: string | null;
   contactsCount: number;
-  totalAutomations: number;
   activeAutomations: number;
   dmsSentToday: number;
   dmsSentWeek: number;
@@ -26,12 +18,9 @@ interface DashboardStats {
   dmsSentMonth: number;
   dmsSkippedMonth: number;
   dmsFailedMonth: number;
-  totalDMs: number;
   clicksThisMonth: number;
-  totalClicks: number;
   ctrThisMonth: number;
   instagramAccounts: AccountOption[];
-  selectedInstagramAccountId: string | null;
   topKeywords: { keyword: string; count: number }[];
   dailyDMs: { date: string; count: number }[];
   recentLogs: Array<{
@@ -39,16 +28,12 @@ interface DashboardStats {
     commenterName: string | null;
     commentText: string;
     status: string;
-    createdAt: string;
-    automation: { name: string };
-    instagramAccount?: { username: string };
   }>;
 }
 
 const roundLink =
   "grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border text-foreground transition-colors hover:border-border-hover hover:bg-surface";
 
-/** Week-over-week change in percent, or null when there is nothing to compare. */
 function weekChange(current: number, previous: number): number | null {
   if (previous === 0) return null;
   return Math.round(((current - previous) / previous) * 1000) / 10;
@@ -163,7 +148,6 @@ export default function DashboardPage() {
 
   return (
     <div className="rise space-y-4">
-      {/* Performance */}
       <section className="panel p-4 sm:p-6" style={{ "--i": 0 } as React.CSSProperties}>
         <div className="flex flex-wrap items-center gap-3">
           <div className="mr-auto min-w-0">
@@ -268,7 +252,6 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Top keywords strip */}
       <section
         className="panel flex flex-wrap items-center gap-x-6 gap-y-4 p-4 sm:px-6"
         style={{ "--i": 1 } as React.CSSProperties}
@@ -300,7 +283,6 @@ export default function DashboardPage() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr_1fr]">
-        {/* Delivery mix */}
         <section className="panel flex flex-col p-4 sm:p-6" style={{ "--i": 2 } as React.CSSProperties}>
           <h2 className="text-sm text-muted">{t("Delivery this month")}</h2>
           <div className="mt-5 grid flex-1 grid-cols-3 gap-3">
@@ -322,7 +304,6 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Delivery rate */}
         <section className="panel flex flex-col p-4 sm:p-6" style={{ "--i": 3 } as React.CSSProperties}>
           <h2 className="text-sm text-muted">{t("Delivery rate")}</h2>
           <p className="mt-3 text-5xl font-semibold tracking-tight tabular">
@@ -350,10 +331,8 @@ export default function DashboardPage() {
           </p>
         </section>
 
-        {/* Recent activity */}
         <section
           className="panel flex flex-col p-4 sm:p-6"
-          // A lighter panel, like the reference's insight card.
           style={{ "--i": 4, background: "var(--tile)" } as React.CSSProperties}
         >
           <div className="flex items-center justify-between gap-3">

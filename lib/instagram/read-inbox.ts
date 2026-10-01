@@ -23,8 +23,7 @@ export async function getConversations({
     apiKey: context.apiKey,
     path: `/inbox/conversations?accountId=${encodeURIComponent(context.accountId)}&limit=50`,
   });
-  // The list has no sender for lastMessage. Leave the optional preview absent
-  // rather than attribute it to the wrong person or fetch every full thread.
+  // lastMessage has no sender, so omit the preview rather than misattribute it.
   return result.data.map((c) => ({
     id: c.id,
     updated_time: c.updatedTime,

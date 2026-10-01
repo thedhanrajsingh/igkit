@@ -1,15 +1,6 @@
 name: Build & Publish (Docker Hub)
 
-# Builda a imagem Docker (Dockerfile na raiz) e publica no Docker Hub.
-#
-# Secrets necessários no repositório (Settings → Secrets and variables → Actions):
-#   * DOCKERHUB_USERNAME , usuário do Docker Hub (também vira o namespace)
-#   * DOCKERHUB_TOKEN    , Access Token do Docker Hub (Account Settings → Security)
-#
-# Triggers:
-#   * push na branch main  -> publica :latest e :sha-xxxx
-#   * push de tag vX.Y.Z   -> publica :vX.Y.Z e :latest
-#   * disparo manual (workflow_dispatch)
+# Needs secrets DOCKERHUB_USERNAME (also the image namespace) and DOCKERHUB_TOKEN.
 
 on:
   push:
@@ -24,12 +15,8 @@ env:
 jobs:
   build-and-push:
     name: Build & push
-    # Opt-in. Without this the job runs on every push to main and fails at the
-    # Docker Hub login for anyone who has not set the two secrets, a red X on
-    # main forever, which buries real CI failures. Secrets cannot be read from
-    # a job-level `if`, so the switch is a repo variable: set DOCKERHUB_ENABLED
-    # to "true" under Settings -> Secrets and variables -> Actions -> Variables
-    # once DOCKERHUB_USERNAME and DOCKERHUB_TOKEN exist.
+    # Opt-in via repo variable (job-level `if` cannot read secrets), so forks
+    # without Docker Hub secrets do not get a permanent red X on main.
     if: ${{ vars.DOCKERHUB_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     permissions:
@@ -65,7 +52,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

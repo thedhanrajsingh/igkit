@@ -12,9 +12,8 @@ export async function GET() {
     return NextResponse.redirect(`${getBaseUrl()}/settings?instagram=forbidden`);
   }
 
-  // getAuthorizationUrl and createOAuthState call requireEnv, which throws.
-  // Without this check an incomplete .env surfaces as a 500 on a plain <a>
-  // navigation, which reads to the user as the button doing nothing at all.
+  // requireEnv throws, and a 500 on a plain <a> navigation reads to the user as
+  // the button doing nothing.
   const missingEnv = getMissingInstagramOAuthEnv();
   if (missingEnv.length > 0) {
     return NextResponse.redirect(

@@ -23,7 +23,19 @@ const getPage = cache((handle: string) =>
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await getPage((await params).handle);
   if (!page) return {};
-  return { title: page.title, description: page.bio ?? undefined };
+  const description = page.bio ?? `${page.title} (@${page.handle}): links`;
+  return {
+    title: { absolute: `${page.title} (@${page.handle})` },
+    description,
+    alternates: { canonical: `/${page.handle}` },
+    openGraph: {
+      type: "profile",
+      title: page.title,
+      description,
+      url: `/${page.handle}`,
+      images: page.avatarUrl ? [page.avatarUrl] : undefined,
+    },
+  };
 }
 
 export default async function BioPage({ params }: Props) {
@@ -37,6 +49,22 @@ export default async function BioPage({ params }: Props) {
       className="min-h-dvh px-4 py-12"
       style={{ background: theme.page, color: theme.text }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ProfilePage",
+            mainEntity: {
+              "@type": "Person",
+              name: page.title,
+              alternateName: `@${page.handle}`,
+              description: page.bio ?? undefined,
+              image: page.avatarUrl ?? undefined,
+            },
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
       <div className="mx-auto flex max-w-md flex-col items-center text-center">
         {page.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- arbitrary creator-supplied host

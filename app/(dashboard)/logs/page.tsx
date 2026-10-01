@@ -1,11 +1,5 @@
 "use client";
 
-/**
- * DM Logs Page
- *
- * Filterable, paginated table of DM logs.
- */
-
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useState, useCallback } from "react";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
@@ -101,7 +95,6 @@ export default function LogsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap gap-2">
           {STATUS_FILTERS.map((status) => (
@@ -130,10 +123,8 @@ export default function LogsPage() {
         )}
       </div>
 
-      {/* Table */}
       <div className="panel rounded overflow-hidden">
-        {/* Six columns don't fit a phone; the table keeps its width and scrolls
-            horizontally inside the panel rather than crushing every cell. */}
+        {/* Six columns don't fit a phone: scroll inside the panel rather than crush cells. */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead>
@@ -199,7 +190,6 @@ export default function LogsPage() {
           </table>
         </div>
 
-        {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-t border-border sm:px-6">
             <p className="text-xs text-muted">

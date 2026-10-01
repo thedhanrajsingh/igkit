@@ -53,7 +53,6 @@ function installGraph(broken: number[] = [], total = 55, pageCap = 50) {
 }
 
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 

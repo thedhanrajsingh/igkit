@@ -1,16 +1,7 @@
 "use client";
 
-/**
- * Followers Over Time
- *
- * Single-series line chart over stored daily snapshots. Deliberately separate
- * from the Overview stat tiles: those sum the selected posts, while this is an
- * account-level total that ignores the post range.
- *
- * History depth is limited by what has been snapshotted, Instagram only serves
- * ~30 days of account insights, so earlier days exist only if this instance was
- * already running then.
- */
+// Account-level total from daily snapshots, independent of the post range. Instagram
+// serves ~30 days of insights, so older days exist only if this instance was running.
 
 import type { Locale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
@@ -92,8 +83,6 @@ export default function FollowerChart({
 
   const current = followers ?? data.at(-1)?.followers ?? null;
 
-  // Net change across the whole visible window, shown once in the header rather
-  // than labelling every point.
   const net =
     data.length > 1 ? data[data.length - 1].followers - data[0].followers : null;
 

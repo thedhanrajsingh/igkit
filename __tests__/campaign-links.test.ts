@@ -25,9 +25,8 @@ let rows: Row[];
 let ops: string[];
 let nextId: number;
 
-// A stand-in for the tracked link table that sorts the way Postgres does for
-// TRACKED_LINK_ORDER and records every operation, so a test can check both the
-// outcome and when the links were read.
+// Fake tracked link table: sorts like Postgres for TRACKED_LINK_ORDER and logs
+// every operation, so tests can check both the outcome and when links were read.
 function fakeTx() {
   const pick = (row: Row) => ({ id: row.id, position: row.position });
 

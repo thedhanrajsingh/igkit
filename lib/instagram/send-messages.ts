@@ -11,6 +11,14 @@ type Button =
   | { type: "url"; title: string; url: string }
   | { type: "postback"; title: string; payload: string };
 
+// A send may have succeeded upstream before a network/5xx failure, and Zernio
+// releases idempotency claims on non-2xx, so never auto-resend.
+function unconfirmedOn5xx(error: unknown): never {
+  if (error instanceof ZernioApiError && error.code >= 500)
+    throw new ZernioDeliveryUnconfirmedError();
+  throw error;
+}
+
 async function sendZernioMessage({
   context,
   recipientId,
@@ -52,13 +60,7 @@ async function sendZernioMessage({
     method: "POST",
     body,
     ...(commentId ? {} : { idempotencyKey }),
-  }).catch((error: unknown) => {
-    // A send may have succeeded upstream before a network/5xx failure. The
-    // service releases idempotency claims on non-2xx, so do not auto-resend.
-    if (error instanceof ZernioApiError && error.code >= 500)
-      throw new ZernioDeliveryUnconfirmedError();
-    throw error;
-  });
+  }).catch(unconfirmedOn5xx);
   const messageId = result?.messageId ?? result?.data?.messageId;
   if (!messageId) throw new ZernioDeliveryUnconfirmedError();
   return {
@@ -126,7 +128,7 @@ export async function sendPrivateReplyWithButton({
     context,
     commentId,
     postId,
-    text: text,
+    text,
     buttons: [{ type: "postback", title: buttonTitle.slice(0, 20), payload }],
   });
 }
@@ -158,7 +160,7 @@ export async function sendDirectMessageWithButton({
   return sendZernioMessage({
     context,
     recipientId: userId,
-    text: text,
+    text,
     buttons: [{ type: "postback", title: buttonTitle.slice(0, 20), payload }],
   });
 }
@@ -190,7 +192,7 @@ export async function sendPrivateReplyWithLinkButton({
     context,
     commentId,
     postId,
-    text: text,
+    text,
     buttons: linkButtons(buttons),
   });
 }
@@ -240,7 +242,7 @@ export async function sendDirectMessageWithLinkButton({
   return sendZernioMessage({
     context,
     recipientId: userId,
-    text: text,
+    text,
     buttons: linkButtons(buttons),
   });
 }
@@ -263,10 +265,7 @@ export async function sendCommentReply({
     path: `/inbox/comments/${encodeURIComponent(postId ?? commentId)}`,
     method: "POST",
     body: { accountId: context.accountId, commentId, message },
-  }).catch((error: unknown) => {
-    if (error instanceof ZernioApiError && error.code >= 500) throw new ZernioDeliveryUnconfirmedError();
-    throw error;
-  });
+  }).catch(unconfirmedOn5xx);
   if (!result?.data?.commentId) throw new ZernioDeliveryUnconfirmedError();
   return { id: result.data.commentId };
 }

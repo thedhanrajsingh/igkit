@@ -1,10 +1,5 @@
-/**
- * Minimal CSV parser for the campaign importer.
- *
- * Handles quoted fields, commas and newlines inside quotes, and escaped
- * quotes (""). Returns one object per data row, keyed by the lowercased,
- * trimmed header names. Blank lines are skipped.
- */
+// Rows keyed by lowercased, trimmed headers. Handles quotes, "" escapes and
+// newlines inside quotes; blank lines are skipped.
 export function parseCsv(text: string): Record<string, string>[] {
   const rows = parseRows(text);
   if (rows.length === 0) return [];
@@ -14,7 +9,6 @@ export function parseCsv(text: string): Record<string, string>[] {
 
   for (let i = 1; i < rows.length; i++) {
     const cells = rows[i];
-    // Skip a fully empty line.
     if (cells.length === 1 && cells[0].trim() === "") continue;
 
     const record: Record<string, string> = {};
@@ -67,7 +61,6 @@ function parseRows(text: string): string[][] {
     }
   }
 
-  // Flush the last field and row if the file did not end with a newline.
   if (field !== "" || row.length > 0) {
     row.push(field);
     rows.push(row);
@@ -76,11 +69,6 @@ function parseRows(text: string): string[][] {
   return rows;
 }
 
-/**
- * Pull the shortcode out of an Instagram post or reel URL so a pasted link
- * can be matched against a media item's permalink. Returns null if the value
- * does not look like an Instagram post URL.
- */
 export function instagramShortcode(value: string): string | null {
   const match = value.match(/instagram\.com\/(?:reels?|p|tv)\/([A-Za-z0-9_-]+)/i);
   return match ? match[1] : null;

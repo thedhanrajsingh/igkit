@@ -11,7 +11,6 @@ export interface SeoPageConfig {
   title: string;
   description: string;
   primaryCta: string;
-  secondaryCta?: string;
   bullets: string[];
   sections: SeoPageSection[];
   comparisonTitle: string;
@@ -55,7 +54,7 @@ export default function SeoPageShell({ config }: { config: SeoPageConfig }) {
                 href="/templates"
                 className="inline-flex items-center justify-center border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-bold text-white transition hover:border-white/20 hover:bg-white/[0.08]"
               >
-                {config.secondaryCta ?? "Browse templates"}
+                Browse templates
               </Link>
             </div>
           </div>

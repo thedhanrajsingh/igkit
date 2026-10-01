@@ -1,3 +1,4 @@
+import { REPO_URL, SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 import type { Metadata } from "next";
 import "./landing.css";
 import Link from "next/link";
@@ -42,7 +43,8 @@ async function getGitHubStars(): Promise<number | null> {
 }
 
 export const metadata: Metadata = {
-  title: "IGKit - Open source Instagram comment-to-DM automation",
+  title: { absolute: "IGKit - Open source Instagram comment-to-DM automation" },
+  alternates: { canonical: "/" },
   description:
     "A free, self-hosted ManyChat alternative. Turn Instagram keyword comments into automatic private replies. Connect through your own Meta app or optional paid provider Zernio.",
 };
@@ -174,6 +176,23 @@ export default async function Home() {
   const stars = await getGitHubStars();
   return (
     <div id="top" className={`or-landing ${geist.className}`}>
+      <script
+        type="application/ld+json"
+        // Structured data so search engines and AI agents can read what IGKit is.
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: SITE_NAME,
+            description: SITE_DESCRIPTION,
+            applicationCategory: "BusinessApplication",
+            operatingSystem: "Web",
+            license: "https://opensource.org/licenses/MIT",
+            codeRepository: REPO_URL,
+            offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+          }),
+        }}
+      />
       <a className="or-skip" href="#main">
         Skip to content
       </a>

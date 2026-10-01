@@ -8,7 +8,7 @@ export const RESERVED_HANDLES = new Set([
   "dashboard", "overview", "inbox", "campaigns", "logs", "settings",
   "diagnostics", "automations", "comment-link-automation",
   "instagram-comment-to-dm-templates", "instagram-dm-automation-agencies",
-  "manychat-alternative", "admin", "static", "public", "robots", "sitemap",
+  "manychat-alternative", "admin", "static", "public", "robots", "sitemap", "llms.txt",
 ]);
 
 export const BIO_THEMES = {

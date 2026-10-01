@@ -25,7 +25,7 @@ export async function generateMetadata({
 
   if (!template) {
     return {
-      title: "Template Not Found - IGKit",
+      title: "Template Not Found",
     };
   }
 

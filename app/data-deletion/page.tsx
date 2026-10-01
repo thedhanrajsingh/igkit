@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Data Deletion - IGKit",
+  title: "Data Deletion",
   description:
     "How IGKit customers can disconnect Instagram and request account or campaign data deletion.",
 };

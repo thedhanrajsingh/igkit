@@ -1,17 +1,28 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { getBaseUrl } from "@/lib/env";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 import "./globals.css";
 
+// NEXTAUTH_URL must be set at build time for absolute OG and canonical URLs.
 export const metadata: Metadata = {
-  title: "IGKit - Open source Instagram comment-to-DM automation",
-  description:
-    "A free, self-hosted ManyChat alternative. Send an Instagram DM automatically when someone comments a keyword on your post or reel, using the official Meta API.",
+  metadataBase: new URL(getBaseUrl()),
+  title: {
+    default: "IGKit - Open source Instagram comment-to-DM automation",
+    template: "%s | IGKit",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: { type: "website", siteName: SITE_NAME, locale: "en_US" },
+  twitter: { card: "summary_large_image" },
   keywords: [
     "instagram automation",
     "comment to DM",
     "instagram private replies",
     "social commerce",
     "manychat alternative",
+    "link in bio",
+    "open source",
   ],
   manifest: "/manifest.webmanifest",
   appleWebApp: {

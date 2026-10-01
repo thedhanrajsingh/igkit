@@ -1,11 +1,8 @@
 import { prisma } from "@/lib/db/client";
 import type { Prisma } from "@/app/generated/prisma/client";
 
-// Self-hosted build: usage is still counted per month so the dashboard can
-// report volume, but no cap is enforced. Meta's own rate limits apply instead.
-// Must stay within PostgreSQL int4 range, since dmsSentThisPeriod is an Int
-// column and this value is used in a `less-than` comparison against it. Two
-// billion DMs/month is effectively unlimited without overflowing the column.
+// Self-hosted: usage is counted but effectively uncapped. Must stay within int4
+// because dmsSentThisPeriod is an Int column compared against it.
 const MONTHLY_DM_LIMIT = 2_000_000_000;
 
 function getMonthStart(date = new Date()): Date {
@@ -28,12 +25,6 @@ async function resetUsageIfNeededTx(
       usagePeriodStart: monthStart,
       dmsSentThisPeriod: 0,
     },
-  });
-}
-
-export async function resetUsageIfNeeded(workspaceId: string): Promise<void> {
-  await prisma.$transaction(async (tx) => {
-    await resetUsageIfNeededTx(tx, workspaceId);
   });
 }
 
@@ -118,34 +109,6 @@ export async function reserveWorkspaceDMSend(
   });
 }
 
-export async function canSendDMForWorkspace(workspaceId: string): Promise<{
-  allowed: boolean;
-  remaining: number;
-  limit: number;
-}> {
-  await resetUsageIfNeeded(workspaceId);
-
-  const workspace = await prisma.workspace.findUnique({
-    where: { id: workspaceId },
-    select: {
-      dmsSentThisPeriod: true,
-    },
-  });
-
-  if (!workspace) {
-    return { allowed: false, remaining: 0, limit: 0 };
-  }
-
-  const limit = MONTHLY_DM_LIMIT;
-  const remaining = Math.max(0, limit - workspace.dmsSentThisPeriod);
-
-  return {
-    allowed: workspace.dmsSentThisPeriod < limit,
-    remaining,
-    limit,
-  };
-}
-
 export async function releaseWorkspaceDMReservation(
   workspaceId: string,
   periodStart: Date | null
@@ -162,8 +125,4 @@ export async function releaseWorkspaceDMReservation(
     },
     data: { dmsSentThisPeriod: { decrement: 1 } },
   });
-}
-
-export async function incrementWorkspaceDMUsage(workspaceId: string) {
-  return reserveWorkspaceDMSend(workspaceId);
 }

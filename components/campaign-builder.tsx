@@ -1,17 +1,5 @@
 "use client";
 
-/**
- * Campaign Builder
- *
- * Two-pane campaign editor: a control panel on the left and a live phone
- * preview on the right. Used for both creating and editing a campaign.
- *
- * Turn 1 wires the fully-functional pieces: trigger scope (specific / any /
- * next post), match mode (specific words / any word), the opening + reveal DM
- * text, public reply, and the tracked link. Button-driven delivery and the
- * follow / email / follow-up steps arrive in later turns.
- */
-
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -27,6 +15,9 @@ import {
 
 type TriggerScope = "specific" | "any" | "next";
 type MatchMode = "specific" | "any";
+
+const FIELD =
+  "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none";
 
 interface LoadedCampaign {
   id: string;
@@ -152,9 +143,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [postThumb, setPostThumb] = useState<string | null>(null);
   const [postCaption, setPostCaption] = useState("");
 
-  // Post IDs already tied to another automation on this account, so the picker
-  // can flag them and the user knows not to double-assign. Maps postId ->
-  // the campaign name using it (for the tooltip).
+  // postId -> name of another campaign on this account already using it.
   const [usedPosts, setUsedPosts] = useState<Record<string, string>>({});
 
   const [matchMode, setMatchMode] = useState<MatchMode>("specific");
@@ -185,8 +174,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
   const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
 
-  // CSV import queue. When present, each save advances to the next row instead
-  // of returning to the campaigns list.
+  // CSV import queue: when present, each save advances to the next row.
   const [importQueue, setImportQueue] = useState<ImportRow[] | null>(null);
   const [importTotal, setImportTotal] = useState(0);
 
@@ -199,14 +187,12 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     [keywordText]
   );
 
-  // Fetch the connected account's real avatar for the preview (cache-first so
-  // it shows instantly on a return visit instead of a blank circle).
+  // Cache-first so the preview avatar shows instantly on a return visit.
   useEffect(() => {
     if (!selectedAccountId) return;
     let cancelled = false;
     const cacheKey = `ig-avatar:${selectedAccountId}`;
     const cached = readCache<string | null>(cacheKey, 30 * 60 * 1000);
-    // Hydrating state from cache is a legitimate effect use here.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (cached.data !== null) setAvatarUrl(cached.data);
 
@@ -227,7 +213,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     };
   }, [selectedAccountId]);
 
-  // Load accounts (both modes need them for the preview username + selector).
   useEffect(() => {
     fetch("/api/dashboard/stats")
       .then((r) => r.json())
@@ -242,7 +227,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       .catch(() => setAccounts([]));
   }, []);
 
-  // Prefill when editing.
   useEffect(() => {
     if (mode !== "edit" || !campaignId) return;
     fetch("/api/automations", { cache: "no-store" })
@@ -295,9 +279,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       .finally(() => setLoading(false));
   }, [mode, campaignId]);
 
-  // Track which posts on the selected account are already assigned to an
-  // automation, so the picker can highlight them. The campaign being edited is
-  // excluded, its own post should read as selected, not "taken".
+  // The campaign being edited is excluded: its own post reads as selected, not "taken".
   useEffect(() => {
     if (!selectedAccountId) return;
     let cancelled = false;
@@ -320,8 +302,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     };
   }, [selectedAccountId, mode, campaignId]);
 
-  // Prefill the editable fields from one queued import row. The reel is left
-  // unset so the user picks it per row.
+  // The reel is left unset so the user picks it per row.
   function prefillFromRow(row: ImportRow) {
     setName(row.name ?? "");
     setTriggerScope("specific");
@@ -346,7 +327,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     setError(null);
   }
 
-  // Pick up a staged CSV import (new mode only) and prefill the first row.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (mode !== "new") return;
@@ -361,7 +341,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       if (acct) setSelectedAccountId(acct);
       prefillFromRow(queue[0]);
     } catch {
-      // ignore a malformed queue
     }
   }, [mode]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -383,6 +362,24 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
   function ensureLinkToken() {
     setDmMessage((cur) => (cur.includes("{link}") ? cur : `${cur.trim()} {link}`.trim()));
+  }
+
+  // Returns false once the queue is finished.
+  function advanceImport(queue: ImportRow[]) {
+    const remaining = queue.slice(1);
+    try {
+      if (remaining.length) {
+        window.localStorage.setItem(IMPORT_QUEUE_KEY, JSON.stringify(remaining));
+      } else {
+        window.localStorage.removeItem(IMPORT_QUEUE_KEY);
+        window.localStorage.removeItem(IMPORT_ACCOUNT_KEY);
+      }
+    } catch {}
+    if (!remaining.length) return false;
+    setImportQueue(remaining);
+    prefillFromRow(remaining[0]);
+    window.scrollTo({ top: 0 });
+    return true;
   }
 
   async function handleSubmit(activeValue: boolean) {
@@ -417,9 +414,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       publicReplyMessages: publicReplyEnabled
         ? publicReplyMessages.map((m) => m.trim()).filter(Boolean)
         : [],
-      trackedDestinationUrl: trackedDestinationUrl.trim() || "",
+      trackedDestinationUrl: trackedDestinationUrl.trim(),
       linkButtonLabel: linkButtonLabel.trim() || "Open link",
-      secondaryDestinationUrl: secondaryDestinationUrl.trim() || "",
+      secondaryDestinationUrl: secondaryDestinationUrl.trim(),
       secondaryButtonLabel: secondaryButtonLabel.trim() || "Open link",
       requireFollow,
       followPromptMessage: requireFollow ? followPromptMessage.trim() : "",
@@ -433,60 +430,27 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     };
 
     try {
-      const res =
-        mode === "new"
-          ? await fetch("/api/automations", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            })
-          : await fetch(`/api/automations?id=${campaignId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            });
+      const res = await fetch(
+        mode === "new" ? "/api/automations" : `/api/automations?id=${campaignId}`,
+        {
+          method: mode === "new" ? "POST" : "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
       const data = await res.json();
       if (data.success) {
-        // The post we just assigned is now in use. Reflect it immediately so
-        // the picker flags it on the next imported row, the fetch that builds
-        // this map doesn't re-run while the builder stays mounted through the
-        // import queue.
+        // The usedPosts fetch doesn't re-run while the builder stays mounted
+        // through the import queue, so flag the just-assigned post here.
         if (triggerScope === "specific" && postId) {
           const assignedPostId = postId;
           setUsedPosts((prev) => ({ ...prev, [assignedPostId]: payload.name }));
         }
-        // Importing: advance to the next queued row instead of leaving.
-        if (importQueue && importQueue.length > 1) {
-          const remaining = importQueue.slice(1);
-          try {
-            window.localStorage.setItem(
-              IMPORT_QUEUE_KEY,
-              JSON.stringify(remaining)
-            );
-          } catch {
-            // ignore
-          }
-          setImportQueue(remaining);
-          prefillFromRow(remaining[0]);
-          setSaving(false);
-          if (typeof window !== "undefined") window.scrollTo({ top: 0 });
-          return;
-        }
-        if (importQueue) {
-          try {
-            window.localStorage.removeItem(IMPORT_QUEUE_KEY);
-            window.localStorage.removeItem(IMPORT_ACCOUNT_KEY);
-          } catch {
-            // ignore
-          }
-        }
-        // refresh() busts the router cache so the list reflects the save
-        // instead of landing on a stale (empty) campaigns page.
+        if (importQueue && advanceImport(importQueue)) return;
+        // refresh() busts the router cache, else the list lands stale (empty).
         router.push("/campaigns");
         router.refresh();
       } else {
-        // Surface the specific field that failed validation instead of a
-        // generic "Invalid input".
         const fieldErrors = data.details?.fieldErrors as
           | Record<string, string[]>
           | undefined;
@@ -496,8 +460,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             ? `${firstField}: ${fieldErrors[firstField][0]}`
             : data.error ?? t("Failed to save campaign")
         );
-        if (typeof window !== "undefined")
-          window.scrollTo({ top: 0, behavior: "smooth" });
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch {
       setError(t("Failed to save campaign"));
@@ -506,30 +469,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     }
   }
 
-  // Skip the current imported row without saving a campaign for it, advancing
-  // to the next one (or finishing the import if it was the last).
   function skipRow() {
     if (!importQueue) return;
     setError(null);
-    if (importQueue.length > 1) {
-      const remaining = importQueue.slice(1);
-      try {
-        window.localStorage.setItem(IMPORT_QUEUE_KEY, JSON.stringify(remaining));
-      } catch {
-        // ignore
-      }
-      setImportQueue(remaining);
-      prefillFromRow(remaining[0]);
-      if (typeof window !== "undefined") window.scrollTo({ top: 0 });
-      return;
-    }
-    // Last row skipped, finish the import.
-    try {
-      window.localStorage.removeItem(IMPORT_QUEUE_KEY);
-      window.localStorage.removeItem(IMPORT_ACCOUNT_KEY);
-    } catch {
-      // ignore
-    }
+    if (advanceImport(importQueue)) return;
     router.push("/campaigns");
     router.refresh();
   }
@@ -565,7 +508,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </div>
       )}
 
-      {/* Top bar */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <div className="flex min-w-0 items-center gap-3">
           {mode === "edit" ? (
@@ -596,26 +538,16 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               {importQueue.length > 1 ? t("Skip") : t("Skip & finish")}
             </button>
           )}
-          {mode === "edit" &&
-            (isActive ? (
-              <button
-                type="button"
-                onClick={() => handleSubmit(false)}
-                disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
-              >
-                {t("Stop")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleSubmit(true)}
-                disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
-              >
-                {t("Go Live")}
-              </button>
-            ))}
+          {mode === "edit" && (
+            <button
+              type="button"
+              onClick={() => handleSubmit(!isActive)}
+              disabled={saving}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+            >
+              {isActive ? t("Stop") : t("Go Live")}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handleSubmit(mode === "new" ? true : isActive)}
@@ -630,7 +562,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       {/* min-w-0 on the cells: a grid item defaults to min-width:auto, so a
           long string widens the whole page instead of wrapping. */}
       <div className="grid gap-6 lg:grid-cols-[300px_1fr] lg:gap-8">
-      {/* Left: controls */}
       <div className="space-y-8 min-w-0">
         {error && (
           <div className="rounded border border-error/20 bg-error/10 p-3 text-sm text-error">
@@ -647,7 +578,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t("e.g. YC referral")}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+            className={FIELD}
             maxLength={100}
           />
           {accounts.length > 1 && (
@@ -662,7 +593,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   setPostThumb(null);
                 }}
                 includeAll={false}
-                label={t("Instagram account")}
               />
             </div>
           )}
@@ -712,7 +642,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 value={keywordText}
                 onChange={(e) => setKeywordText(e.target.value)}
                 placeholder={t("Enter a word or multiple")}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                className={FIELD}
               />
               <p className="text-xs text-muted">{t("Use commas to separate words")}</p>
             </div>
@@ -762,7 +692,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                     }
                     placeholder={t("Sent you a DM! 📩")}
                     maxLength={1000}
-                    className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                    className={FIELD}
                   />
                   {publicReplyMessages.length > 1 && (
                     <button
@@ -814,14 +744,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setOpeningDmMessage(e.target.value)}
                   placeholder={t("Hey there! I'm so happy you're here 😊")}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                  className={`${FIELD} resize-none`}
                   maxLength={1000}
                 />
                 <input
                   value={openingDmButtonLabel}
                   onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
                   placeholder={t("Send me the link")}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                  className={FIELD}
                   maxLength={64}
                 />
               </div>
@@ -844,14 +774,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setFollowPromptMessage(e.target.value)}
                   placeholder={t("quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over")}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                  className={`${FIELD} resize-none`}
                   maxLength={1000}
                 />
                 <input
                   value={followPromptButtonLabel}
                   onChange={(e) => setFollowPromptButtonLabel(e.target.value)}
                   placeholder={t("i'm following")}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                  className={FIELD}
                   maxLength={20}
                 />
                 <p className="text-xs text-muted">
@@ -870,7 +800,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               onChange={(e) => setDmMessage(e.target.value)}
               placeholder={t("Write a message")}
               rows={3}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+              className={`${FIELD} resize-none`}
               maxLength={1000}
             />
             {linkOpen ? (
@@ -880,14 +810,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setTrackedDestinationUrl(e.target.value)}
                   onBlur={ensureLinkToken}
                   placeholder="https://yourlink.com/offer"
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                  className={FIELD}
                 />
                 <input
                   value={linkButtonLabel}
                   onChange={(e) => setLinkButtonLabel(e.target.value)}
                   placeholder={t("Button label (e.g. Open link)")}
                   maxLength={20}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                  className={FIELD}
                 />
                 {secondLinkOpen ? (
                   <div className="space-y-2 border-t border-border pt-2">
@@ -895,14 +825,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                       value={secondaryDestinationUrl}
                       onChange={(e) => setSecondaryDestinationUrl(e.target.value)}
                       placeholder="https://yourlink.com/second"
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                      className={FIELD}
                     />
                     <input
                       value={secondaryButtonLabel}
                       onChange={(e) => setSecondaryButtonLabel(e.target.value)}
                       placeholder={t("Second button label")}
                       maxLength={20}
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
+                      className={FIELD}
                     />
                   </div>
                 ) : (
@@ -945,7 +875,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   onChange={(e) => setFollowUpMessage(e.target.value)}
                   placeholder={t("Btw just wanted to say thanks for following me, I appreciate the support 🙌")}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none resize-none"
+                  className={`${FIELD} resize-none`}
                   maxLength={1000}
                 />
                 <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
@@ -978,7 +908,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         </Section>
       </div>
 
-      {/* Right: preview */}
       <div>
         <p className="mb-4 text-sm text-muted">{t("Preview")}</p>
         <div className="flex min-w-0 justify-center lg:sticky lg:top-6 lg:block">

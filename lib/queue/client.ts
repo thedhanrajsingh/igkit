@@ -1,9 +1,3 @@
-/**
- * BullMQ Queue Client
- *
- * Provides the DM processing queue and Redis connection for BullMQ.
- */
-
 import { Queue } from "bullmq";
 import Redis from "ioredis";
 
@@ -12,15 +6,11 @@ let connection: Redis | null = null;
 export function getRedisConnection(): Redis {
   if (!connection) {
     connection = new Redis(process.env.REDIS_URL!, {
-      maxRetriesPerRequest: null, // Required by BullMQ
+      maxRetriesPerRequest: null, // required by BullMQ
     });
   }
   return connection;
 }
-
-// ─── DM Queue ───────────────────────────────────────────────────────────────────
-
-export type CommentSource = "WEBHOOK" | "POLLING";
 
 export interface ProcessCommentJob {
   accountConnectionId?: string;
@@ -30,16 +20,13 @@ export interface ProcessCommentJob {
   commenterId: string;
   commenterName?: string;
   mediaId: string;
-  // Set when the comment came from an ad: the organic post the ad was made
-  // from. Campaigns are bound to that post, so both ids have to be matched.
+  // Ad comments: the organic post the ad came from, which campaigns bind to.
   originalMediaId?: string;
   requeueAttempt?: number;
-  // Which path enqueued this comment. It is not copied to ProcessedComment or
-  // used for reconciliation dedup.
-  source?: CommentSource;
+  // Not copied to ProcessedComment or used for reconciliation dedup.
+  source?: "WEBHOOK" | "POLLING";
 }
 
-// Delivered when a user taps an opening DM's button, carries the reveal target.
 export interface ProcessPostbackJob {
   accountConnectionId?: string;
   instagramAccountId: string;
@@ -47,18 +34,11 @@ export interface ProcessPostbackJob {
   payload: string;
   mid?: string;
   fallback?: boolean;
-  // Set on the delayed second pass of a follow-gate check. Instagram does not
-  // report a brand-new follow immediately, so the first `false` is re-checked
-  // later instead of rejecting the tap outright.
+  // Delayed follow re-checks done so far; older jobs carry only followRecheck, meaning one.
   followRecheck?: boolean;
-  // How many delayed re-checks have run, counting this one. Absent on jobs
-  // queued before re-checks were counted, where `followRecheck` meant one.
   followRecheckAttempt?: number;
 }
 
-// Scheduled after the link is delivered, to send the appreciation follow-up.
-// Enqueued with a delay (followUpDelayMinutes) so it can fire later, not just
-// immediately.
 export interface ProcessFollowUpJob {
   accountConnectionId?: string;
   instagramAccountId: string;
@@ -67,8 +47,6 @@ export interface ProcessFollowUpJob {
   commenterName?: string | null;
 }
 
-// An inbound DM from a user. Campaigns with `dmTriggerEnabled` whose keywords
-// match the text reply to the sender.
 export interface ProcessMessageJob {
   accountConnectionId?: string;
   instagramAccountId: string;
@@ -94,18 +72,12 @@ export function getDMQueue(): Queue<DmQueueJob> {
     dmQueue = new Queue<DmQueueJob>("dm-processing", {
       connection: getRedisConnection(),
       defaultJobOptions: {
-        removeOnComplete: { count: 1000 }, // Keep last 1000 completed jobs
-        // Clear failed jobs shortly after they exhaust retries. Job ids are
-        // deterministic (comment_<acct>_<id>), so a retained failed job would
-        // block the polling reconciler from ever retrying that comment. Clearing
-        // them lets a later sweep re-enqueue and try again once a transient
-        // failure (e.g. an Instagram rate-limit window) has passed. Failure
-        // detail is still preserved in DmLog.
+        removeOnComplete: { count: 1000 },
+        // Job ids are deterministic, so a retained failed job would block the reconciler
+        // from ever re-enqueueing that comment. Failure detail survives in DmLog.
         removeOnFail: { age: 300, count: 2000 },
         attempts: 3,
-        backoff: {
-          type: "custom",
-        },
+        backoff: { type: "custom" },
       },
     });
   }

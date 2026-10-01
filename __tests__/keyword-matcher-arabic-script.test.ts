@@ -1,11 +1,5 @@
-/**
- * Keyword Matcher, Arabic-script (Persian / Arabic / Urdu) coverage.
- *
- * Every case below returned `matched: false` before normalizeArabicScript
- * existed, which made keyword campaigns unusable for a Persian-speaking
- * account: the comment and the keyword look identical on screen and differ
- * only by codepoint.
- */
+// Every case failed before normalizeArabicScript: Persian/Arabic/Urdu comments
+// and keywords can look identical on screen yet differ by codepoint.
 
 import { describe, it, expect } from "vitest";
 import {

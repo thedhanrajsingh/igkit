@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Terms of Service - IGKit",
+  title: "Terms of Service",
   description:
     "Terms for using IGKit's Instagram comment-to-DM campaign software.",
 };

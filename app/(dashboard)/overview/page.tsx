@@ -1,12 +1,6 @@
 "use client";
 
-/**
- * Instagram Overview Page
- *
- * Aggregate reach/engagement across your recent posts, plus a per-post table.
- * Views / reach / saved / shares come from Instagram media insights (requires
- * the insights permission); likes and comments are always available.
- */
+// Views/reach/saved/shares need the insights permission; likes and comments are always available.
 
 import type { Locale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
@@ -121,8 +115,7 @@ export default function OverviewPage() {
             {data.truncated ? t(" (capped at {count})", { count: totals.posts }) : ""}
           </p>
           {followers !== null && (
-            // Kept out of the tile row below: that row sums the selected posts,
-            // whereas this is a current account-level total.
+            // Not a tile: the tiles sum the selected posts, this is an account-level total.
             <p className="mt-1 text-sm text-muted">
               {followers.toLocaleString(locale)} {t("followers")}
             </p>
@@ -176,7 +169,6 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Aggregate totals */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <StatCard label={t("Views")} value={formatNumber(totals.views, locale)} />
         <StatCard label={t("Reach")} value={formatNumber(totals.reach, locale)} />
@@ -186,17 +178,14 @@ export default function OverviewPage() {
         <StatCard label={t("Shares")} value={formatNumber(totals.shares, locale)} />
       </div>
 
-      {/* Follower trend, account-level, independent of the post range */}
       <FollowerChart data={followerHistory} followers={followers} />
 
-      {/* Per-post table */}
       <div className="panel rounded p-4 sm:p-6">
         <h2 className="text-sm font-semibold text-foreground mb-4">{t("Posts")}</h2>
         {posts.length === 0 ? (
           <p className="text-sm text-muted py-8 text-center">{t("No posts found")}</p>
         ) : (
-          // Eight metric columns can't compress into a phone; let the table keep
-          // its natural width and scroll inside the panel instead.
+          // Eight columns don't fit a phone: scroll inside the panel instead.
           <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
@@ -233,24 +222,11 @@ export default function OverviewPage() {
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right text-muted">
-                      {formatNumber(p.views, locale)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-muted">
-                      {formatNumber(p.reach, locale)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-muted">
-                      {formatNumber(p.likes, locale)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-muted">
-                      {formatNumber(p.comments, locale)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-muted">
-                      {formatNumber(p.saved, locale)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-muted">
-                      {formatNumber(p.shares, locale)}
-                    </td>
+                    {[p.views, p.reach, p.likes, p.comments, p.saved, p.shares].map((n, i) => (
+                      <td key={i} className="py-3 px-3 text-right text-muted">
+                        {formatNumber(n, locale)}
+                      </td>
+                    ))}
                     <td className="py-3 pl-3 text-right text-zinc-500">
                       {formatDate(p.timestamp, locale)}
                     </td>

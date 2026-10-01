@@ -50,10 +50,8 @@ export async function GET(request: NextRequest) {
     const { accessToken: longLivedToken, expiresIn } =
       await getLongLivedToken(shortLivedToken);
     const userInfo = await getUserInfo(longLivedToken);
-    // Webhooks and the messaging API key off the professional account ID
-    // (user_id), not the app-scoped `id`. Store user_id so comment webhooks
-    // can be matched back to this account. Fall back to id if user_id is
-    // ever absent.
+    // Webhooks and messaging key off the professional user_id, not the app-scoped id,
+    // so store user_id to match comment webhooks back to this account.
     const instagramId = userInfo.user_id ?? userInfo.id;
     const connection = await canConnectInstagramAccount({
       workspaceId: state.workspaceId,
@@ -104,9 +102,8 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[Instagram Callback] Error:", err);
-    // The message is the only diagnostic a self-hoster gets for a failed
-    // connect, so persist it alongside the other operational events rather
-    // than leaving it in server logs they may not be able to reach.
+    // The only diagnostic a self-hoster gets for a failed connect; server logs may
+    // be out of their reach.
     await prisma.operationalEvent
       .create({
         data: {

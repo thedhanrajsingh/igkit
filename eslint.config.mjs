@@ -10,9 +10,7 @@ const eslintConfig = defineConfig([
     // API routes included, as a page link.
     rules: { "@next/next/no-html-link-for-pages": "off" },
   },
-  // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",

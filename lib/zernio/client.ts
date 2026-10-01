@@ -53,8 +53,7 @@ export async function zernioRequest<T>({
   }).catch(() => {
     throw new ZernioApiError(502);
   });
-  // Responses can contain platform credentials. Only the HTTP classification is
-  // safe to persist in job errors or return to the browser.
+  // Bodies can contain platform credentials; only the HTTP status is safe to surface.
   if (!response.ok) {
     const message = `Zernio request failed (HTTP ${response.status})`;
     if (response.status === 429) throw new RateLimitError(message);

@@ -1,14 +1,6 @@
 #!/bin/sh
-# Scheduler for the periodic jobs under /api/cron.
-#
-# On Vercel these run from the "crons" block in vercel.json. Nothing reads that
-# file anywhere else, so a self-hosted instance has no scheduler at all and the
-# jobs simply never run, silently. The one that hurts is refresh-tokens: the
-# Instagram token expires and every automation stops without a single error.
-#
-# Run as its own container from the app image (see the compose file), so the
-# jobs live with the app they belong to and keep working even if every other
-# stack on the host is taken down.
+# Self-hosted stand-in for vercel.json "crons": without it /api/cron never runs
+# and Instagram tokens silently expire. Runs as its own container from the app image.
 
 set -u
 
@@ -47,9 +39,8 @@ while true; do
   hour=${hhmm%:*}
   minute=${hhmm#*:}
 
-  # attach-next-reel every 5 minutes rather than once a day: a campaign created
-  # before its reel is published stays inert until this binds it, and a daily
-  # run would cost the whole first evening of comments.
+  # Every 5 min, not daily: a campaign created before its reel is published stays
+  # inert until this binds it, and a daily run would miss the first evening.
   case "$minute" in
     00|05|10|15|20|25|30|35|40|45|50|55)
       if [ "$last_slot" != "$hhmm" ]; then

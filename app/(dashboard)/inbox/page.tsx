@@ -1,14 +1,7 @@
 "use client";
 
-/**
- * Inbox
- *
- * Instagram DM conversations for the selected account, with live message
- * history and a reply composer. Messages are read from the Conversations API
- * (Meta only exposes the 20 most recent per thread) and refreshed by polling.
- * Sending is subject to Instagram's 24-hour messaging window, Meta's error is
- * surfaced verbatim when it applies.
- */
+// Meta exposes only the 20 most recent messages per thread; sends are subject to the
+// 24-hour messaging window, and Meta's error is surfaced verbatim.
 
 import type { Locale } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
@@ -19,9 +12,8 @@ import type { ConversationListItem } from "@/app/api/instagram/conversations/rou
 import type { ThreadMessage } from "@/app/api/instagram/conversations/[id]/route";
 
 const POLL_MS = 12_000;
-// Cached list/threads are shown instantly on revisit, then revalidated in the
-// background. The Instagram Conversations API is slow (often several seconds),
-// so this is what makes the inbox feel fast after the first load.
+// The Conversations API often takes seconds, so cached lists/threads paint instantly
+// on revisit and revalidate in the background.
 const CACHE_MAX_AGE_MS = 60_000;
 const convCacheKey = (accountId: string) => `inbox:convs:${accountId}`;
 const msgCacheKey = (conversationId: string) => `inbox:msgs:${conversationId}`;
@@ -64,9 +56,7 @@ export default function InboxPage() {
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
-  // Accounts for the selector; default to the first connected account. Uses the
-  // lightweight accounts endpoint (one query) rather than the heavy dashboard
-  // stats aggregation, so the inbox isn't gated on analytics before it can load.
+  // The lightweight accounts endpoint, so the inbox isn't gated on dashboard stats.
   useEffect(() => {
     fetch("/api/instagram/accounts")
       .then((r) => r.json())
@@ -75,8 +65,7 @@ export default function InboxPage() {
         const next: AccountOption[] = payload.data.instagramAccounts ?? [];
         setAccounts(next);
         setSelectedAccountId((prev) => {
-          // Keep the seeded account only if it's still connected; otherwise
-          // fall back to the default so a removed account can't wedge the inbox.
+          // A removed account must not wedge the inbox.
           const stillValid = prev && next.some((a) => a.id === prev);
           return stillValid
             ? prev
@@ -86,9 +75,8 @@ export default function InboxPage() {
       .catch(() => setAccounts([]));
   }, []);
 
-  // Remember the chosen account for the next visit.
   useEffect(() => {
-    if (typeof window === "undefined" || !selectedAccountId) return;
+    if (!selectedAccountId) return;
     window.sessionStorage.setItem("inbox:selectedAccount", selectedAccountId);
   }, [selectedAccountId]);
 
@@ -120,12 +108,9 @@ export default function InboxPage() {
     [selectedAccountId]
   );
 
-  // Load + poll conversations for the selected account. A cached list is shown
-  // immediately (so revisits are instant) while a fresh copy loads silently.
   useEffect(() => {
     if (!selectedAccountId) return;
-    // Reset the open thread when switching accounts. This is an intentional
-    // synchronous reset on a dependency change, not derived render state.
+    // Intentional synchronous reset of the open thread on account switch.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveId(null);
     setMessages([]);
@@ -168,8 +153,6 @@ export default function InboxPage() {
     [selectedAccountId]
   );
 
-  // Load + poll the open thread. Cached messages render instantly while a fresh
-  // copy loads silently; opening a thread never shows a blank pane on revisit.
   useEffect(() => {
     if (!activeId || active?.detailsUnavailable) return;
     const cached = readCache<ThreadMessage[]>(
@@ -177,7 +160,6 @@ export default function InboxPage() {
       CACHE_MAX_AGE_MS
     );
     if (cached.data) {
-      // Paint cached messages instantly on thread change; intentional reset.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages(cached.data);
       setThreadLoading(false);
@@ -193,7 +175,6 @@ export default function InboxPage() {
     return () => window.clearInterval(timer);
   }, [activeId, active?.detailsUnavailable, loadMessages]);
 
-  // Keep the thread pinned to the latest message.
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -202,8 +183,7 @@ export default function InboxPage() {
   function openConversation(id: string) {
     setActiveId(id);
     setSendError(null);
-    // Paint any cached thread synchronously so the pane never flashes empty
-    // or shows the previously open conversation while the fetch runs.
+    // Paint synchronously so the pane never flashes empty or shows the previous thread.
     const cached = readCache<ThreadMessage[]>(msgCacheKey(id), CACHE_MAX_AGE_MS);
     setMessages(cached.data ?? []);
     setThreadLoading(!cached.data);
@@ -215,7 +195,6 @@ export default function InboxPage() {
     setSending(true);
     setSendError(null);
 
-    // Optimistically show the reply immediately, then confirm with the server.
     const optimistic: ThreadMessage = {
       id: `optimistic-${Date.now()}`,
       text,
@@ -225,6 +204,7 @@ export default function InboxPage() {
     };
     setMessages((prev) => [...prev, optimistic]);
     setDraft("");
+    let error: string = t("Failed to send message");
 
     try {
       const res = await fetch("/api/instagram/conversations", {
@@ -240,19 +220,17 @@ export default function InboxPage() {
       if (data.success) {
         await loadMessages(active.id, true);
         void loadConversations(true);
-      } else {
-        // Roll the optimistic message back and restore the draft so it's not lost.
-        setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-        setDraft(text);
-        setSendError(data.error ?? t("Failed to send message"));
+        return;
       }
+      error = data.error ?? error;
     } catch {
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      setDraft(text);
-      setSendError(t("Failed to send message"));
     } finally {
       setSending(false);
     }
+    // Roll back and restore the draft so it's not lost.
+    setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+    setDraft(text);
+    setSendError(error);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -277,8 +255,7 @@ export default function InboxPage() {
       </div>
 
       <div className="grid h-[calc(100dvh-11rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[300px_1fr]">
-        {/* Conversation list. On mobile it takes the full pane and is hidden
-            once a thread is open (ManyChat-style); on sm+ it is always shown. */}
+        {/* On mobile the list fills the pane and hides once a thread is open. */}
         <div
           className={`min-h-0 flex-col border-b border-border sm:flex sm:border-b-0 sm:border-r ${
             active ? "hidden" : "flex"
@@ -330,8 +307,6 @@ export default function InboxPage() {
           </div>
         </div>
 
-        {/* Thread. On mobile it is only shown once a conversation is open and
-            fills the pane; on sm+ it always sits beside the list. */}
         <div
           className={`min-h-0 flex-col ${active ? "flex" : "hidden sm:flex"}`}
         >

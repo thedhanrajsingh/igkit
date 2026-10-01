@@ -1,18 +1,5 @@
-/**
- * Tracked link (DM button) order, tested against a real Postgres.
- *
- * The bug these tests guard against lives in Postgres itself: links saved in
- * one request share a createdAt, and Postgres returns tied rows in whatever
- * order its sort and the rows' place on disk produce. No mock reproduces that,
- * so this suite needs a database and is skipped without one:
- *
- *   docker run --rm -d -p 55432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
- *   TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:55432/postgres \
- *     npx vitest run __tests__/tracked-link-order.db.test.ts
- *
- * Each run builds the schema from prisma/migrations inside its own throwaway
- * Postgres schema and drops it at the end, so it never touches existing data.
- */
+// Needs real Postgres (no mock reproduces tied-createdAt row order); skipped unless
+// TEST_DATABASE_URL is set. Migrates into a throwaway schema dropped at the end.
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -147,9 +134,8 @@ async function storedLinks(automationId: string) {
   });
 }
 
-// Rewrites a campaign's older links in place. Postgres writes an updated row
-// to a new spot on disk, which is what edits do to a real database over time,
-// and it is what exposes an ORDER BY that relies on ties.
+// Updating rows moves them on disk, as real edits do over time, which exposes
+// an ORDER BY that relies on ties.
 async function moveOlderLinksOnDisk(automationId: string) {
   await sql.query(
     `UPDATE "TrackedLink" SET "destinationUrl" = "destinationUrl"
@@ -209,11 +195,8 @@ describe.skipIf(!DATABASE_URL)("tracked link order on a real Postgres", () => {
       await sql.query(migrationSql(dir));
     }
 
-    // Sequential scans only, which is what Postgres picks for the small tables
-    // of a typical self-hosted instance. A sequential scan returns rows in
-    // their order on disk, the condition under which tied rows come back
-    // swapped. Without this, whether the old bugs showed up here would depend
-    // on the plan Postgres happened to choose.
+    // Force sequential scans (typical for small self-hosted tables): rows come
+    // back in disk order, so tied rows swap regardless of the chosen plan.
     state.db = new PrismaClient({
       adapter: new PrismaPg(
         {
@@ -290,8 +273,7 @@ describe.skipIf(!DATABASE_URL)("tracked link order on a real Postgres", () => {
   describe("reading", () => {
     it("keeps a duplicated campaign's buttons in order on the dashboard", async () => {
       // The reported bug: an original whose second link was added later, then
-      // copied. Each copy's links are written together, and edits keep moving
-      // rows on disk. Before this change most copies came back swapped here.
+      // copied. Before the fix most copies came back swapped here.
       const originalId = await createCampaign("Original", { primary: PRIMARY });
       await saveCampaign(originalId, { primary: PRIMARY, second: SECOND });
 

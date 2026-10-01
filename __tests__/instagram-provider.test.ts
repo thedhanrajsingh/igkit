@@ -12,8 +12,11 @@ import {
   getRecentMediaComments,
   getUserFollowStatus,
   getUserMedia,
+  getMediaInsights,
+  getZernioFollowerSnapshots,
+  sendCommentReply,
 } from "@/lib/instagram/provider";
-import { zernioRequest } from "@/lib/zernio/client";
+import { zernioRequest, ZernioDeliveryUnconfirmedError } from "@/lib/zernio/client";
 import { RateLimitError, TokenExpiredError } from "@/lib/meta/client";
 import { prisma } from "@/lib/db/client";
 const context = {
@@ -28,10 +31,13 @@ function respond(body: unknown, status = 200) {
     new Response(JSON.stringify(body), { status })
   );
 }
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+});
 describe("Instagram provider boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal("fetch", fetchMock);
   });
   it("resolves only the selected account workspace credentials", async () => {
     vi.mocked(prisma.zernioConnection.findUnique).mockResolvedValue({
@@ -144,9 +150,6 @@ describe("Instagram provider boundary", () => {
 });
 
 it("uses only selected-account synced insights and never default zeros", async () => {
-  fetchMock.mockReset();
-  vi.stubGlobal("fetch", fetchMock);
-  const { getMediaInsights } = await import("@/lib/instagram/provider");
   respond({
     platformAnalytics: [
       {
@@ -182,11 +185,6 @@ it("uses only selected-account synced insights and never default zeros", async (
   ).rejects.toThrow();
 });
 it("uses dated follower snapshots without manufacturing missing days", async () => {
-  fetchMock.mockReset();
-  vi.stubGlobal("fetch", fetchMock);
-  const { getZernioFollowerSnapshots } = await import(
-    "@/lib/instagram/provider"
-  );
   respond({
     accountId: "selected",
     metrics: { follower_count: { total: 0, values: [] } },
@@ -210,8 +208,6 @@ it("uses dated follower snapshots without manufacturing missing days", async () 
 });
 
 it("recognizes Reels only from an explicit Instagram Reel permalink", async () => {
-  fetchMock.mockReset();
-  vi.stubGlobal("fetch", fetchMock);
   respond({
     posts: [
       {
@@ -245,11 +241,6 @@ it("recognizes Reels only from an explicit Instagram Reel permalink", async () =
 });
 
 it("adds a repeatable idempotency key and stops on an unconfirmed direct send", async () => {
-  fetchMock.mockReset();
-  vi.stubGlobal("fetch", fetchMock);
-  const { ZernioDeliveryUnconfirmedError } = await import(
-    "@/lib/zernio/client"
-  );
   const input = {
     context: { ...context, operationId: "job:campaign" },
     instagramAccountId: "ig",
@@ -272,8 +263,6 @@ it("adds a repeatable idempotency key and stops on an unconfirmed direct send", 
 });
 
 it('treats a lost public-reply response as unconfirmed instead of safe to repeat', async () => {
-  fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock);
-  const { sendCommentReply } = await import('@/lib/instagram/provider');
   fetchMock.mockRejectedValueOnce(new Error('connection reset'));
   await expect(sendCommentReply({ context, commentId: 'comment', postId: 'post', message: 'Thanks' })).rejects.toMatchObject({ name: 'ZernioDeliveryUnconfirmedError' });
   respond({ data: {} });

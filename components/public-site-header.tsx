@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 interface PublicSiteHeaderProps {
-  active?: "home" | "templates";
+  active?: "templates";
 }
 
 const navLinks = [

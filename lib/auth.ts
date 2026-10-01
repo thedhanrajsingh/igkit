@@ -9,15 +9,10 @@ import { isEmailAllowedToSignIn } from "@/lib/env";
 type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
 
 const emailFrom = process.env.EMAIL_FROM ?? "IGKit <login@example.com>";
-// Setting EMAIL_SERVER switches magic links to your own SMTP server, for
-// self-hosters who do not want a third-party mail service. Resend stays the
-// default, so an existing deployment is unaffected.
+// EMAIL_SERVER switches magic links to your own SMTP; Resend stays the default.
 const smtpServer = process.env.EMAIL_SERVER;
 
-/**
- * Provider id the login form has to sign in with. It differs per transport,
- * so it is derived here rather than hardcoded at the call site.
- */
+// The login form's provider id differs per transport.
 export const EMAIL_PROVIDER_ID = smtpServer ? "nodemailer" : "resend";
 
 export const authConfig = {
@@ -31,8 +26,7 @@ export const authConfig = {
         }),
   ],
   callbacks: {
-    // Runs before the magic link is sent, so a blocked address never receives
-    // one, and again when the link is verified.
+    // Runs before the magic link is sent, so a blocked address never gets one.
     async signIn({ user }) {
       return isEmailAllowedToSignIn(user?.email);
     },

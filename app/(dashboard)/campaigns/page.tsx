@@ -1,11 +1,5 @@
 "use client";
 
-/**
- * Campaigns List Page
- *
- * Shows all campaigns as cards with toggle and delete.
- */
-
 import { useI18n } from "@/lib/i18n/provider";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -16,43 +10,17 @@ import { readCache, writeCache } from "@/lib/client-cache";
 interface Campaign {
   id: string;
   name: string;
-  goal: string | null;
   postId: string | null;
   postUrl: string | null;
   pendingNextReel: boolean;
-  matchAnyPost: boolean;
   keywords: string[];
-  matchAnyWord: boolean;
   dmMessage: string;
-  openingDmEnabled: boolean;
-  openingDmMessage: string | null;
-  openingDmButtonLabel: string | null;
-  publicReplyEnabled: boolean;
-  publicReplyMessage: string | null;
-  publicReplyMessages: string[];
   requireFollow: boolean;
-  followPromptMessage: string | null;
-  followPromptButtonLabel: string | null;
   isActive: boolean;
-  wholeWordMatch: boolean;
   instagramAccountId: string;
-  instagramAccount: {
-    username: string;
-    instagramId: string;
-  };
-  reportShareSlug: string | null;
-  reportShareEnabled: boolean;
-  reportUrl: string | null;
-  createdAt: string;
+  instagramAccount: { username: string };
   _count: { dmLogs: number };
-  trackedLinks: Array<{
-    id: string;
-    slug: string;
-    label: string | null;
-    destinationUrl: string;
-    trackedUrl: string;
-    _count: { clicks: number };
-  }>;
+  trackedLinks: Array<{ trackedUrl: string }>;
   analytics: {
     sent: number;
     skipped: number;
@@ -70,12 +38,9 @@ export default function CampaignsPage() {
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [loading, setLoading] = useState(true);
-  // postId -> current thumbnail URL, fetched live (Instagram URLs expire, so
-  // they are never stored on the campaign).
+  // postId -> media URLs, fetched live: Instagram URLs expire, so they are never stored.
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
-  // postId -> video URL for reels, so a campaign thumbnail can play on click.
   const [videos, setVideos] = useState<Record<string, string>>({});
-  // The reel currently playing in the lightbox (null when closed).
   const [playingVideo, setPlayingVideo] = useState<{
     url: string;
     postUrl: string | null;
@@ -122,9 +87,7 @@ export default function CampaignsPage() {
     return () => window.clearTimeout(timer);
   }, [fetchAutomations]);
 
-  // Fetch fresh post thumbnails (and reel video URLs) for the accounts in view
-  // and map them by postId. Cache-first so they show instantly on a return
-  // visit. Instagram URLs expire, so they are never stored on the campaign.
+  // Cache-first so thumbnails show instantly on a return visit.
   useEffect(() => {
     if (automations.length === 0) return;
     let cancelled = false;
@@ -137,7 +100,6 @@ export default function CampaignsPage() {
       thumbs: Record<string, string>;
       videos: Record<string, string>;
     }>(cacheKey, 15 * 60 * 1000);
-    // Hydrating state from cache is a legitimate effect use here.
     /* eslint-disable react-hooks/set-state-in-effect */
     if (cached.data) {
       setThumbnails(cached.data.thumbs);
@@ -184,7 +146,6 @@ export default function CampaignsPage() {
     };
   }, [automations]);
 
-  // Close the reel lightbox on Escape.
   useEffect(() => {
     if (!playingVideo) return;
     const onKey = (e: KeyboardEvent) => {
@@ -239,9 +200,7 @@ export default function CampaignsPage() {
     }
   }
 
-  // The copy is made server-side from the stored campaign, so settings this
-  // list never loads (the DM trigger, the follow-up, the link button label)
-  // still come along.
+  // Copied server-side, so settings this list never loads still come along.
   async function duplicateAutomation(id: string) {
     setMenuOpenId(null);
     try {
@@ -280,7 +239,6 @@ export default function CampaignsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm text-muted">
@@ -312,7 +270,6 @@ export default function CampaignsPage() {
         </div>
       </div>
 
-      {/* Search + status filter */}
       {automations.length > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
@@ -340,7 +297,6 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* Empty state */}
       {automations.length === 0 && (
         <div className="panel rounded p-8 text-center sm:p-12">
           <h3 className="text-lg font-semibold mb-2">{t("No campaigns yet")}</h3>
@@ -356,14 +312,12 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* No matches for the current filter */}
       {automations.length > 0 && filtered.length === 0 && (
         <div className="panel rounded p-8 text-center text-sm text-muted">
           {t("No campaigns match your search.")}
         </div>
       )}
 
-      {/* Campaign cards */}
       <div className="space-y-3">
         {filtered.map((auto) => {
           const videoUrl = auto.postId ? videos[auto.postId] : undefined;
@@ -373,8 +327,8 @@ export default function CampaignsPage() {
             onClick={() => router.push(`/campaigns/${auto.id}`)}
             className="panel rounded p-4 hover:border-border-hover transition-all cursor-pointer"
           >
-            {/* Wraps rather than compressing: on a phone the action buttons drop
-                to their own line instead of squeezing the campaign summary. */}
+            {/* Wraps so on a phone the actions drop to their own line instead
+                of squeezing the summary. */}
             <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
               {auto.postId && thumbnails[auto.postId] && (
                 videoUrl ? (
@@ -449,7 +403,6 @@ export default function CampaignsPage() {
                   )}
                 </div>
 
-                {/* Keywords */}
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {auto.keywords.map((kw) => (
                     <span
@@ -461,17 +414,14 @@ export default function CampaignsPage() {
                   ))}
                 </div>
 
-                {/* DM preview */}
                 <p className="text-sm text-muted truncate">&ldquo;{auto.dmMessage}{t("”")}</p>
 
-                {/* Tracked link sent */}
                 {auto.trackedLinks[0]?.trackedUrl && (
                   <p className="mt-2 truncate font-mono text-xs text-zinc-500">
                     {auto.trackedLinks[0].trackedUrl}
                   </p>
                 )}
 
-                {/* Stats */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-zinc-500">
                   <span className="font-medium text-foreground">
                     {auto._count.dmLogs} {t("runs")}
@@ -504,12 +454,10 @@ export default function CampaignsPage() {
                 )}
               </div>
 
-              {/* Actions */}
               <div
                 className="ml-auto flex items-center gap-2"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Copy reel URL */}
                 {auto.postUrl && (
                   <button
                     onClick={() => void copyReelUrl(auto)}
@@ -518,7 +466,6 @@ export default function CampaignsPage() {
                     {copiedId === auto.id ? t("Copied!") : t("Copy URL")}
                   </button>
                 )}
-                {/* Toggle */}
                 <button
                   onClick={() => toggleActive(auto.id, auto.isActive)}
                   className={`
@@ -534,7 +481,6 @@ export default function CampaignsPage() {
                   />
                 </button>
 
-                {/* Kebab menu */}
                 <div className="relative">
                   <button
                     onClick={() =>
@@ -578,7 +524,6 @@ export default function CampaignsPage() {
         })}
       </div>
 
-      {/* Reel lightbox */}
       {playingVideo && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"

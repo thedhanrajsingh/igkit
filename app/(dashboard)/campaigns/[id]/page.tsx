@@ -1,18 +1,11 @@
 "use client";
 
-/**
- * Campaign Detail
- *
- * Clicking a campaign opens this read-only view: a summary of the automation
- * on the left, and Insights / Preview tabs on the right. Edit and Stop/Resume
- * live in the top bar.
- */
-
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
+import StatCard from "@/components/stat-card";
 
 interface Campaign {
   id: string;
@@ -171,7 +164,6 @@ export default function CampaignDetailPage() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
-      {/* Left: config summary */}
       <div className="space-y-6">
         <div className="flex items-center gap-2">
           <Link
@@ -293,7 +285,6 @@ export default function CampaignDetailPage() {
         )}
       </div>
 
-      {/* Right: top bar + tabs */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 border-b border-border pb-3">
           <div className="flex gap-4">
@@ -328,12 +319,7 @@ export default function CampaignDetailPage() {
         {tab === "insights" && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {metrics.map((m) => (
-              <div key={m.label} className="panel rounded p-4">
-                <p className="text-sm text-muted">{m.label}</p>
-                <p className="mt-1 text-2xl font-semibold text-foreground">
-                  {m.value}
-                </p>
-              </div>
+              <StatCard key={m.label} label={m.label} value={m.value} />
             ))}
           </div>
         )}

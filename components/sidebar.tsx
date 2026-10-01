@@ -1,11 +1,5 @@
 "use client";
 
-/**
- * Sidebar Navigation
- *
- * Text-only nav with active state and workspace section.
- */
-
 import LanguageSwitcher from "@/components/language-switcher";
 import { useI18n } from "@/lib/i18n/provider";
 import Link from "next/link";
@@ -40,7 +34,6 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/70"

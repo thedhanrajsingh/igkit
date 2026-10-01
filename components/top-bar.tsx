@@ -1,12 +1,5 @@
 "use client";
 
-/**
- * Top Bar
- *
- * Logo pill, pill navigation (xl and up), account chip, and the Menu button
- * that opens the drawer below xl.
- */
-
 import { navItems } from "@/components/sidebar";
 import { useI18n } from "@/lib/i18n/provider";
 import { ChatsCircle, InstagramLogo, List } from "@phosphor-icons/react";

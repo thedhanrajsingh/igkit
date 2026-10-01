@@ -28,9 +28,8 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get("x-hub-signature-256");
 
   if (!verifyWebhookSignature(rawBody, signature)) {
-    // Record the attempt so a signature mismatch is visible rather than a
-    // silent 401. This is the common symptom of FACEBOOK_APP_SECRET being
-    // set to the wrong app's secret for the webhook's signing key.
+    // Make a mismatch visible rather than a silent 401: the usual cause is
+    // FACEBOOK_APP_SECRET set to the wrong app's secret.
     await prisma.operationalEvent
       .create({
         data: {

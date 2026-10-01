@@ -1,12 +1,7 @@
 "use client";
 
-/**
- * Import Campaigns Page
- *
- * Paste a CSV of everything except the post. Each row is queued and opened in
- * the campaign builder prefilled and editable, one at a time, so you review
- * each campaign and pick its reel before saving.
- */
+// Rows are queued and opened in the builder one at a time, so each reel is picked
+// by hand before saving.
 
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useState } from "react";

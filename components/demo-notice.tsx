@@ -32,9 +32,8 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/// The host is only knowable in the browser, so the server snapshot is always
-/// false. Rendering on the server instead would flash the notice onto every
-/// instance that is not the demo.
+/// The host is only knowable in the browser; a server-rendered notice would
+/// flash onto every instance that is not the demo.
 function getSnapshot(): boolean {
   return window.location.hostname === DEMO_HOST && !isDismissed();
 }

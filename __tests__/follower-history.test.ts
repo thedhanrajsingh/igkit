@@ -1,10 +1,3 @@
-/**
- * Follower History, Unit Tests
- *
- * Covers the reconstruction of absolute follower totals from the daily
- * net-change deltas that Instagram's follower_count insight returns.
- */
-
 import { describe, it, expect } from "vitest";
 import { reconstructFollowerTotals } from "../lib/reports/follower-history";
 
@@ -60,9 +53,8 @@ describe("reconstructFollowerTotals", () => {
   });
 
   it("truncates the window rather than emitting negative totals", () => {
-    // Deltas claim +80 over two days but the account only has 50 followers, so
-    // the day before the window would come out negative and must be dropped.
-    // The days that survive stay internally consistent: 30 + 20 = 50.
+    // Deltas claim +80 but the account has 50, so the earliest day would go
+    // negative and is dropped; the survivors stay consistent: 30 + 20 = 50.
     const result = reconstructFollowerTotals(
       [
         { date: "2026-07-01", delta: 60 },

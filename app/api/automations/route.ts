@@ -65,17 +65,14 @@ const createAutomationSchema = z
     isActive: z.boolean().optional().default(true),
     wholeWordMatch: z.boolean().optional().default(true),
   })
-  // A campaign must target a specific post, any post, or the next reel.
   .refine(
     (d) => d.matchAnyPost || d.pendingNextReel || Boolean(d.postId),
     { message: "Choose which post(s) trigger the campaign", path: ["postId"] }
   )
-  // And it must match either specific words or any word.
   .refine((d) => d.matchAnyWord || d.keywords.length >= 1, {
     message: "Add at least one keyword, or match any word",
     path: ["keywords"],
   })
-  // An opening DM needs both a message and a button label.
   .refine(
     (d) =>
       !d.openingDmEnabled ||
@@ -117,7 +114,6 @@ const updateAutomationSchema = z.object({
     .union([z.string().url(), z.literal("")])
     .optional()
     .nullable(),
-  // Same semantics for the optional second tracked link / DM button.
   secondaryDestinationUrl: z
     .union([z.string().url(), z.literal("")])
     .optional()
@@ -519,9 +515,8 @@ export async function PATCH(request: NextRequest) {
     automationData.publicReplyMessage = null;
   }
 
-  // One transaction, so a save never lands half applied. Updating the campaign
-  // first locks its row, which makes a second save of the same campaign wait
-  // for this one before it reads the links.
+  // One transaction so a save never lands half applied. Updating the campaign first
+  // locks its row, so a concurrent save of it waits before reading the links.
   const updated = await prisma.$transaction(async (tx) => {
     const campaign = await tx.automation.update({
       where: { id: automationId },

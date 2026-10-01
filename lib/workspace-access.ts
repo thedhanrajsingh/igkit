@@ -1,7 +1,7 @@
 import type { Workspace, WorkspaceRole } from "@/app/generated/prisma/client";
 import { getCurrentUserId } from "@/lib/auth";
 import { prisma } from "@/lib/db/client";
-import { ensureWorkspaceForUser } from "@/lib/workspace";
+import { ensureWorkspaceForUser, getWorkspaceMembership } from "@/lib/workspace";
 
 export type WorkspaceContext = {
   userId: string;
@@ -10,41 +10,19 @@ export type WorkspaceContext = {
   role: WorkspaceRole;
 };
 
-const ROLE_ORDER: Record<WorkspaceRole, number> = {
-  MEMBER: 1,
-  ADMIN: 2,
-  OWNER: 3,
-};
-
-export function hasWorkspaceRole(
-  role: WorkspaceRole,
-  minimumRole: WorkspaceRole
-) {
-  return ROLE_ORDER[role] >= ROLE_ORDER[minimumRole];
-}
-
 export function canManageWorkspace(role: WorkspaceRole) {
-  return hasWorkspaceRole(role, "ADMIN");
-}
-
-export function canManageBilling(role: WorkspaceRole) {
-  return role === "OWNER";
+  return role === "ADMIN" || role === "OWNER";
 }
 
 export async function getCurrentWorkspaceContext(): Promise<WorkspaceContext | null> {
   const userId = await getCurrentUserId();
   if (!userId) return null;
 
-  const membership = await prisma.workspaceMember.findFirst({
-    where: { userId },
-    include: { workspace: true },
-    orderBy: { createdAt: "asc" },
-  });
-
+  const membership = await getWorkspaceMembership(userId);
   if (membership) {
     return {
       userId,
-      workspaceId: membership.workspaceId,
+      workspaceId: membership.workspace.id,
       workspace: membership.workspace,
       role: membership.role,
     };

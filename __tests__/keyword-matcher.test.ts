@@ -1,9 +1,3 @@
-/**
- * Keyword Matcher, Unit Tests
- *
- * Tests all edge cases for keyword matching logic.
- */
-
 import { describe, it, expect } from "vitest";
 import {
   foldDiacritics,
@@ -149,12 +143,8 @@ describe("matchKeywords, partial matching", () => {
 });
 
 describe("matchKeywords, numeric keyword / letter-O homoglyph", () => {
-  // Production bug: a "08" campaign never fired for a real commenter who
-  // typed "O8" (capital letter O, not the digit zero), visually identical
-  // on most fonts, and mobile autocapitalize compounds it on a leading "o".
-  // matchKeywords silently returned unmatched, indistinguishable from any
-  // other non-matching comment, so nothing surfaced until someone reported
-  // "commented and got no reply".
+  // Production bug: a "08" campaign never fired for a commenter who typed "O8"
+  // (letter O), which looks identical and mobile autocapitalize makes common.
   it("matches a numeric keyword when the comment uses letter O for zero", () => {
     expect(matchKeywords("O8", ["08"], true).matched).toBe(true);
     expect(matchKeywords("o8", ["08"], true).matched).toBe(true);

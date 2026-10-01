@@ -5,13 +5,7 @@ import { useI18n } from "@/lib/i18n/provider";
 
 /* eslint-disable @next/next/no-img-element */
 
-/**
- * Campaign Preview
- *
- * Fixed-size iPhone 17 Pro mockup that simulates how a campaign appears on
- * Instagram across three screens (Post, Comments, DM). Every screen renders in
- * the identical frame so switching tabs never resizes the phone.
- */
+// Every screen renders in the identical frame so switching tabs never resizes the phone.
 
 export type PreviewTab = "post" | "comments" | "dm" | "dmTrigger";
 
@@ -46,8 +40,6 @@ interface CampaignPreviewProps {
 }
 
 const SAMPLE_USER = "username";
-
-/* ----------------------------- icons ----------------------------- */
 
 const S = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
@@ -93,8 +85,6 @@ const Ico = {
   ),
 };
 
-/* ----------------------------- helpers ----------------------------- */
-
 function renderMessage(text: string, hasLink: boolean, linkUrl: string | undefined, linkPlaceholder: string) {
   const withName = text.replace(/\{username\}/g, SAMPLE_USER);
   return withName.split(/(\{link\})/g).map((part, i) =>
@@ -107,7 +97,6 @@ function renderMessage(text: string, hasLink: boolean, linkUrl: string | undefin
             : "text-zinc-500 italic"
         }
       >
-        {/* Show the actual link being sent, not a placeholder token. */}
         {linkUrl || (hasLink ? linkPlaceholder : "{link}")}
       </span>
     ) : (
@@ -157,19 +146,15 @@ function Phone({ children }: { children: React.ReactNode }) {
   return (
     // max-w-full so the fixed 300px frame cannot overflow a narrow screen
     <div className="relative w-[300px] max-w-full">
-      {/* Left side buttons: action, volume up, volume down */}
       <span className={`${btn} -left-[2px] top-[96px] h-7`} />
       <span className={`${btn} -left-[2px] top-[140px] h-12`} />
       <span className={`${btn} -left-[2px] top-[200px] h-12`} />
-      {/* Right side buttons: side/power, camera control */}
       <span className={`${btn} -right-[2px] left-auto top-[150px] h-20 bg-gradient-to-l`} />
       <span className={`${btn} -right-[2px] left-auto top-[250px] h-9 bg-gradient-to-l`} />
 
-      {/* Titanium frame → black bezel → screen */}
       <div className="relative rounded-[3rem] bg-gradient-to-br from-zinc-500 via-zinc-700 to-zinc-600 p-[3px] shadow-2xl">
         <div className="rounded-[2.85rem] bg-black p-[9px]">
           <div className="relative h-[640px] overflow-hidden rounded-[2.3rem] bg-black">
-            {/* Dynamic Island */}
             <div className="absolute left-1/2 top-2 z-20 h-6 w-24 -translate-x-1/2 rounded-full bg-black" />
             {children}
           </div>
@@ -179,19 +164,12 @@ function Phone({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ----------------------------- screens ----------------------------- */
-
 function PostScreen({
   username,
   avatarUrl,
   postThumb,
   caption,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  postThumb: string | null;
-  caption: string;
-}) {
+}: Pick<CampaignPreviewProps, "username" | "avatarUrl" | "postThumb" | "caption">) {
   const { t } = useI18n();
   return (
     <div className="flex h-full flex-col text-white">
@@ -246,13 +224,10 @@ function CommentsScreen({
   sampleComment,
   publicReplyEnabled,
   publicReplyMessage,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  sampleComment: string;
-  publicReplyEnabled: boolean;
-  publicReplyMessage: string;
-}) {
+}: Pick<
+  CampaignPreviewProps,
+  "username" | "avatarUrl" | "sampleComment" | "publicReplyEnabled" | "publicReplyMessage"
+>) {
   const { t } = useI18n();
   const reactions = ["❤️", "🙌", "🔥", "👏", "😢", "😍", "😮", "😂"];
   return (
@@ -309,6 +284,40 @@ function CommentsScreen({
   );
 }
 
+function DmButton({ label }: { label: string }) {
+  return (
+    <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
+      {label}
+    </div>
+  );
+}
+
+// A bot message with one button, then the user's tap echoed back as a reply.
+function ButtonExchange({
+  avatarUrl,
+  message,
+  button,
+}: {
+  avatarUrl: string | null;
+  message: string;
+  button: string;
+}) {
+  return (
+    <>
+      <div className="flex items-end gap-2">
+        <Avatar url={avatarUrl} size={24} />
+        <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
+          <p className="whitespace-pre-wrap px-3 py-2 text-sm">{message}</p>
+          <DmButton label={button} />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">{button}</div>
+      </div>
+    </>
+  );
+}
+
 function DmScreen({
   username,
   avatarUrl,
@@ -328,28 +337,14 @@ function DmScreen({
   followUpDelayMinutes = 0,
   linkUrl,
   inboundMessage,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  openingDmEnabled: boolean;
-  openingDmMessage: string;
-  openingDmButtonLabel: string;
-  revealMessage: string;
-  hasLink: boolean;
-  linkButtonLabel: string;
-  linkUrl?: string;
-  hasSecondLink: boolean;
-  secondLinkButtonLabel: string;
-  requireFollow: boolean;
-  followPromptMessage: string;
-  followPromptButtonLabel: string;
-  followUpEnabled: boolean;
-  followUpMessage: string;
-  followUpDelayMinutes?: number;
+}: CampaignPreviewProps & {
   // Present on the keyword-trigger thread: the DM the user sends to start it.
   inboundMessage?: string;
 }) {
   const { t } = useI18n();
+  const resolved = revealMessage.replace(/\{username\}/g, SAMPLE_USER);
+  const showCard = hasLink && resolved.includes("{link}");
+  const bodyText = showCard ? resolved.replace(/\s*\{link\}\s*/g, " ").trim() : resolved;
   return (
     <div className="flex h-full flex-col text-white">
       <StatusBar />
@@ -372,80 +367,38 @@ function DmScreen({
           </div>
         )}
         {openingDmEnabled && (
-          <>
-            <div className="flex items-end gap-2">
-              <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
-                <p className="whitespace-pre-wrap px-3 py-2 text-sm">{openingDmMessage || t("Your opening message…")}</p>
-                <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                  {openingDmButtonLabel || t("Button label")}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
-                {openingDmButtonLabel || t("Button label")}
-              </div>
-            </div>
-          </>
+          <ButtonExchange
+            avatarUrl={avatarUrl}
+            message={openingDmMessage || t("Your opening message…")}
+            button={openingDmButtonLabel || t("Button label")}
+          />
         )}
         {requireFollow && (
-          <>
-            <div className="flex items-end gap-2">
-              <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
-                <p className="whitespace-pre-wrap px-3 py-2 text-sm">
-                  {followPromptMessage ||
-                    "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"}
-                </p>
-                <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                  {followPromptButtonLabel || "i'm following"}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
-                {followPromptButtonLabel || "i'm following"}
-              </div>
-            </div>
-          </>
+          <ButtonExchange
+            avatarUrl={avatarUrl}
+            message={
+              followPromptMessage ||
+              "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"
+            }
+            button={followPromptButtonLabel || "i'm following"}
+          />
         )}
-        {(() => {
-          const resolved = revealMessage.replace(/\{username\}/g, SAMPLE_USER);
-          const hasToken = resolved.includes("{link}");
-          const showCard = hasLink && hasToken;
-          const bodyText = showCard
-            ? resolved.replace(/\s*\{link\}\s*/g, " ").trim()
-            : resolved;
-          return (
-            <div className="flex items-end gap-2">
-              <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
-                {(!showCard || bodyText) && (
-                  <p className="whitespace-pre-wrap px-3 py-2 text-sm">
-                    {!revealMessage
-                      ? t("Write a message")
-                      : showCard
-                        ? bodyText
-                        : renderMessage(revealMessage, hasLink, linkUrl, t("your link"))}
-                  </p>
-                )}
-                {showCard && (
-                  <>
-                    <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                      {linkButtonLabel || "Open link"}
-                    </div>
-                    {hasSecondLink && (
-                      <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                        {secondLinkButtonLabel || "Open link"}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })()}
+        <div className="flex items-end gap-2">
+          <Avatar url={avatarUrl} size={24} />
+          <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
+            {(!showCard || bodyText) && (
+              <p className="whitespace-pre-wrap px-3 py-2 text-sm">
+                {!revealMessage
+                  ? t("Write a message")
+                  : showCard
+                    ? bodyText
+                    : renderMessage(revealMessage, hasLink, linkUrl, t("your link"))}
+              </p>
+            )}
+            {showCard && <DmButton label={linkButtonLabel || "Open link"} />}
+            {showCard && hasSecondLink && <DmButton label={secondLinkButtonLabel || "Open link"} />}
+          </div>
+        </div>
         {followUpEnabled && (
           <>
             {followUpDelayMinutes > 0 && (
@@ -477,8 +430,6 @@ function DmScreen({
   );
 }
 
-/* ----------------------------- root ----------------------------- */
-
 export default function CampaignPreview(props: CampaignPreviewProps) {
   const { t } = useI18n();
   const { tab, onTabChange } = props;
@@ -492,73 +443,19 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
   ];
 
   // The DM-trigger tab disappears when the trigger is switched off; fall back
-  // to the comment thread rather than rendering an empty phone.
+  // to the DM thread rather than rendering an empty phone.
   const activeTab: PreviewTab =
     tab === "dmTrigger" && !props.dmTriggerEnabled ? "dm" : tab;
 
   return (
     <div className="flex flex-col items-center gap-5">
       <Phone>
-        {activeTab === "post" && (
-          <PostScreen
-            username={props.username}
-            avatarUrl={props.avatarUrl}
-            postThumb={props.postThumb}
-            caption={props.caption}
-          />
-        )}
-        {activeTab === "comments" && (
-          <CommentsScreen
-            username={props.username}
-            avatarUrl={props.avatarUrl}
-            sampleComment={props.sampleComment}
-            publicReplyEnabled={props.publicReplyEnabled}
-            publicReplyMessage={props.publicReplyMessage}
-          />
-        )}
-        {activeTab === "dm" && (
-          <DmScreen
-            username={props.username}
-            avatarUrl={props.avatarUrl}
-            openingDmEnabled={props.openingDmEnabled}
-            openingDmMessage={props.openingDmMessage}
-            openingDmButtonLabel={props.openingDmButtonLabel}
-            revealMessage={props.revealMessage}
-            hasLink={props.hasLink}
-            linkButtonLabel={props.linkButtonLabel}
-            hasSecondLink={props.hasSecondLink}
-            secondLinkButtonLabel={props.secondLinkButtonLabel}
-            requireFollow={props.requireFollow}
-            followPromptMessage={props.followPromptMessage}
-            followPromptButtonLabel={props.followPromptButtonLabel}
-            followUpEnabled={props.followUpEnabled}
-            followUpMessage={props.followUpMessage}
-            followUpDelayMinutes={props.followUpDelayMinutes}
-            linkUrl={props.linkUrl}
-          />
-        )}
+        {activeTab === "post" && <PostScreen {...props} />}
+        {activeTab === "comments" && <CommentsScreen {...props} />}
+        {activeTab === "dm" && <DmScreen {...props} />}
         {activeTab === "dmTrigger" && (
-          <DmScreen
-            username={props.username}
-            avatarUrl={props.avatarUrl}
-            // The user opened the conversation, so no opening DM is sent.
-            openingDmEnabled={false}
-            openingDmMessage=""
-            openingDmButtonLabel=""
-            revealMessage={props.revealMessage}
-            hasLink={props.hasLink}
-            linkButtonLabel={props.linkButtonLabel}
-            hasSecondLink={props.hasSecondLink}
-            secondLinkButtonLabel={props.secondLinkButtonLabel}
-            requireFollow={props.requireFollow}
-            followPromptMessage={props.followPromptMessage}
-            followPromptButtonLabel={props.followPromptButtonLabel}
-            followUpEnabled={props.followUpEnabled}
-            followUpMessage={props.followUpMessage}
-            followUpDelayMinutes={props.followUpDelayMinutes}
-            linkUrl={props.linkUrl}
-            inboundMessage={props.sampleComment}
-          />
+          // The user opened the conversation, so no opening DM is sent.
+          <DmScreen {...props} openingDmEnabled={false} inboundMessage={props.sampleComment} />
         )}
       </Phone>
 

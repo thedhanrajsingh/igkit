@@ -1,24 +1,10 @@
-/**
- * Rate Limiter
- *
- * Redis-based rate limiter for Instagram private replies.
- *
- * The cap matches Meta's documented limit for this exact call: 750 private
- * replies per hour per Instagram professional account, for comments on posts
- * and reels. Exceeding it risks 429s and app-level restrictions, so the worker
- * requeues rather than pushing through.
- * https://developers.facebook.com/docs/graph-api/overview/rate-limiting/
- *
- * Note this is a hard ceiling with no headroom. If Meta throttles before the
- * documented limit, or other calls on the same account share the bucket, lower
- * this value.
- */
-
+// Meta's documented cap: 750 private replies per hour per account. No headroom,
+// so lower it if Meta throttles earlier or other calls share the bucket.
 import Redis from "ioredis";
 
-const RATE_LIMIT_MAX = 750; // private replies per hour, per Meta's documented cap
-const RATE_LIMIT_WINDOW = 3600; // 1 hour in seconds
-const REQUEUE_DELAY_MS = 30 * 60 * 1000; // 30 minutes
+export const RATE_LIMIT_MAX = 750;
+const RATE_LIMIT_WINDOW = 3600;
+const REQUEUE_DELAY_MS = 30 * 60 * 1000;
 const MAX_REQUEUE_ATTEMPTS = 3;
 
 let redis: Redis | null = null;
@@ -69,39 +55,18 @@ function blockedResult(
   count: number,
   requeueAttempt: number
 ): RateLimitResult {
-  if (requeueAttempt >= MAX_REQUEUE_ATTEMPTS) {
-    return {
-      allowed: false,
-      currentCount: count,
-      remainingDMs: 0,
-      shouldRequeue: false,
-      requeueDelayMs: 0,
-      shouldSkip: true,
-      reserved: false,
-    };
-  }
-
+  const skip = requeueAttempt >= MAX_REQUEUE_ATTEMPTS;
   return {
     allowed: false,
     currentCount: count,
     remainingDMs: 0,
-    shouldRequeue: true,
-    requeueDelayMs: REQUEUE_DELAY_MS,
-    shouldSkip: false,
+    shouldRequeue: !skip,
+    requeueDelayMs: skip ? 0 : REQUEUE_DELAY_MS,
+    shouldSkip: skip,
     reserved: false,
   };
 }
 
-/**
- * Check if an Instagram account is within its DM rate limit.
- *
- * Uses a Redis counter with a 1-hour TTL per account.
- * Key pattern: `rate:dm:{instagramAccountId}`
- *
- * @param instagramAccountId - The Instagram account ID to check
- * @param requeueAttempt - How many times this job has been requeued (0 = first attempt)
- * @returns Rate limit result with action recommendations
- */
 export async function checkRateLimit(
   instagramAccountId: string,
   requeueAttempt: number = 0
@@ -112,31 +77,7 @@ export async function checkRateLimit(
   const currentCount = await client.get(key);
   const count = currentCount ? parseInt(currentCount, 10) : 0;
 
-  if (count >= RATE_LIMIT_MAX) {
-    // Over the limit
-    if (requeueAttempt >= MAX_REQUEUE_ATTEMPTS) {
-      // Exceeded max requeue attempts, skip this DM
-      return {
-        allowed: false,
-        currentCount: count,
-        remainingDMs: 0,
-        shouldRequeue: false,
-        requeueDelayMs: 0,
-        shouldSkip: true,
-        reserved: false,
-      };
-    }
-
-    return {
-      allowed: false,
-      currentCount: count,
-      remainingDMs: 0,
-      shouldRequeue: true,
-      requeueDelayMs: REQUEUE_DELAY_MS,
-      shouldSkip: false,
-      reserved: false,
-    };
-  }
+  if (count >= RATE_LIMIT_MAX) return blockedResult(count, requeueAttempt);
 
   return {
     allowed: true,
@@ -149,11 +90,7 @@ export async function checkRateLimit(
   };
 }
 
-/**
- * Atomically reserve a DM send slot for an Instagram account.
- * This is the worker-safe path; it prevents concurrent jobs from all passing
- * the rate-limit check before any of them increments the Redis counter.
- */
+// Atomic, so concurrent jobs cannot all pass the check before any increments.
 export async function reserveDMSlot(
   instagramAccountId: string,
   requeueAttempt: number = 0
@@ -188,21 +125,8 @@ export async function reserveDMSlot(
   };
 }
 
-/**
- * Release a DM slot previously taken by reserveDMSlot.
- *
- * reserveDMSlot increments the hourly counter before the send, so concurrent
- * jobs can't all pass the check at once. When that send then fails (closed
- * messaging window, expired token, rejected reply) the reserved slot is never
- * used and must be handed back. Otherwise a comment that never delivers a DM
- * still burns one slot per attempt, and BullMQ's retries burn several. On a
- * post with many failing sends the counter inflates past the real number of
- * DMs and legitimate replies get skipped as rate-limited until the TTL expires.
- *
- * DECR is atomic and preserves the key's TTL, so the hourly window still resets
- * when it originally would. A missing key (the window already rolled over)
- * would decrement to -1 with no expiry, so that case is clamped back to zero.
- */
+// Hand back a slot whose send failed, or retries inflate the counter. DECR keeps
+// the TTL; a missing key would go to -1 with no expiry, so clamp to zero.
 export async function releaseDMSlot(
   instagramAccountId: string
 ): Promise<number> {
@@ -216,39 +140,10 @@ export async function releaseDMSlot(
   return next;
 }
 
-/**
- * Backwards-compatible helper for tests and admin scripts.
- * Prefer reserveDMSlot in workers.
- */
+// Test helper. Prefer reserveDMSlot in workers.
 export async function incrementDMCounter(
   instagramAccountId: string
 ): Promise<number> {
   const result = await reserveDMSlot(instagramAccountId, MAX_REQUEUE_ATTEMPTS);
   return result.currentCount;
 }
-
-/**
- * Get the current DM count for an Instagram account.
- */
-export async function getCurrentDMCount(
-  instagramAccountId: string
-): Promise<number> {
-  const client = getRedis();
-  const key = `rate:dm:${instagramAccountId}`;
-  const count = await client.get(key);
-  return count ? parseInt(count, 10) : 0;
-}
-
-/**
- * Reset the rate limiter for an account (useful for testing).
- */
-export async function resetRateLimit(
-  instagramAccountId: string
-): Promise<void> {
-  const client = getRedis();
-  const key = `rate:dm:${instagramAccountId}`;
-  await client.del(key);
-}
-
-// Export constants for use in tests
-export { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, REQUEUE_DELAY_MS, MAX_REQUEUE_ATTEMPTS };

@@ -2,9 +2,6 @@
 
 import type { StaticMessageKey } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
-/**
- * Status label for DM status. Plain text; color carries the state.
- */
 
 const statusConfig: Record<string, { text: string; label: StaticMessageKey }> = {
   SENT: { text: "text-success", label: "Sent" },

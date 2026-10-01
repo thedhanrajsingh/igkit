@@ -32,8 +32,6 @@ import {
   sendPrivateReply,
   sendPrivateReplyWithButton,
   sendPrivateReplyWithLinkButton,
-} from "@/lib/instagram/provider";
-import {
   createInstagramContext,
   hasInstagramCredentials,
   type InstagramContext,
@@ -51,24 +49,12 @@ import {
   renderMessageWithoutLink,
 } from "@/lib/tracking/message";
 import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
-
 import { ZernioApiError } from "@/lib/zernio/client";
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 
-// How long to wait before re-checking a follow that came back false: one
-// delay per re-check, each counted from the previous check.
-//
-// `is_user_follow_business` does not reflect a brand-new follow right away, and
-// the follow gate asks people to follow and tap a button that is sitting in
-// front of them, so tapping seconds after following is the normal case, not
-// the exception. Rejecting on the first `false` therefore turns away the exact
-// people who did what was asked, and they get told to follow an account they
-// already follow.
-//
-// Two checks rather than one long wait: measured, a follow still read `false`
-// 17 s after it happened and `true` by ~68 s. An early check catches the fast
-// ones sooner; the last still covers the slow ones.
+// `is_user_follow_business` lags a brand-new follow (measured: still false at 17 s, true by ~68 s),
+// so a false on tap is re-checked after each delay instead of rejecting someone who just followed.
 const FOLLOW_RECHECK_DELAYS_MS = (
   process.env.FOLLOW_RECHECK_DELAYS_MS ?? "20000,40000"
 )
@@ -80,24 +66,8 @@ const FOLLOW_RECHECK_TOTAL_MS = FOLLOW_RECHECK_DELAYS_MS.reduce(
   0
 );
 
-/**
- * Sends Meta answered with an error but may well have delivered anyway.
- *
- * Meta returns the generic code 1 OAuthException on /messages *after* the DM
- * has reached the recipient, observed in production: a user tapped the reply's
- * button 30 seconds after a send this worker had already marked FAILED. Logging
- * that as a plain failure is harmful twice over: the job is retried (up to
- * BACKOFF_DELAYS.length times, each retry another copy in the same inbox), and
- * the comment never satisfies the reconciler's "handled" test, so every sweep
- * re-enqueues it for the whole lookback window. Together that sent one person
- * dozens of identical DMs.
- *
- * Flagging it as unconfirmed instead is exactly what dmDeliveryUnconfirmed is
- * for: the sweep's dedup already treats that as handled, and processComment
- * skips a DM whose delivery is unconfirmed. The trade-off is deliberate, a
- * code 1 that really did fail means that person gets no DM and can comment
- * again, which is far better than spamming someone who already received it.
- */
+const DEFAULT_FOLLOW_PROMPT =
+  "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over";
 
 function formatError(error: unknown): string {
   if (error instanceof MetaApiError) {
@@ -109,11 +79,8 @@ function formatError(error: unknown): string {
   return "Unknown error";
 }
 
-// Meta rejections that a plain-text retry cannot fix: the send was refused for
-// the conversation, not for the button template. Retrying as text just burns
-// the attempt and, worse, overwrites the real error with a misleading one
-// ("invalid for a private reply", because the first attempt already used up the
-// comment's single allowed private reply).
+// Conversation-level refusals: a text retry fails too and overwrites the real error with a
+// misleading one (the first attempt already used the comment's single private reply).
 const NON_TEMPLATE_REJECTIONS = [
   /outside of allowed window/i,
   /invalid for a private reply/i,
@@ -140,27 +107,18 @@ type WorkerTrackedLink = {
   destinationUrl: string;
 };
 
-/**
- * Build the tappable link buttons for a DM. The first link uses the campaign's
- * `linkButtonLabel`; each additional link uses its own stored `label`. Capped at
- * Meta's 3-button limit for a button template.
- */
+// Meta allows at most 3 buttons per template.
 function buildLinkButtons(
   trackedLinks: WorkerTrackedLink[],
   primaryLabel: string | null
 ): { title: string; url: string }[] {
   return trackedLinks.slice(0, 3).map((link, index) => ({
     url: buildTrackedUrl(link.slug),
-    title:
-      (index === 0 ? primaryLabel : link.label) || link.label || "Open link",
+    title: (index === 0 && primaryLabel) || link.label || "Open link",
   }));
 }
 
-/**
- * Fallback text when Meta rejects the button template: render the primary link
- * inline, then append any extra tracked URLs on their own lines so no link is
- * lost.
- */
+// Used when Meta rejects the button template: extra links go on their own lines so none is lost.
 function buildInlineLinkFallback(
   message: string,
   commenterName: string | null | undefined,
@@ -183,11 +141,7 @@ type RevealAutomation = {
   instagramAccount: { instagramId: string };
 };
 
-/**
- * Deliver a campaign's reveal message as a direct message. Shared by the
- * button-tap (postback) path and the DM keyword-trigger path, both already
- * have an open conversation with the user, so neither uses a private reply.
- */
+// Postback and DM-trigger paths already have an open conversation, so no private reply.
 async function sendRevealDirectMessage({
   accessToken,
   automation,
@@ -205,7 +159,7 @@ async function sendRevealDirectMessage({
     await sendDirectMessage({
       context: accessToken,
       instagramAccountId: automation.instagramAccount.instagramId,
-      userId: userId,
+      userId,
       message: renderMessageWithTracking({
         message: automation.dmMessage,
         commenterName,
@@ -215,7 +169,6 @@ async function sendRevealDirectMessage({
     return;
   }
 
-  // Try button template first; if Meta rejects it, fall back to inline links.
   const bodyText =
     renderMessageWithoutLink({
       message: automation.dmMessage,
@@ -230,13 +183,11 @@ async function sendRevealDirectMessage({
     await sendDirectMessageWithLinkButton({
       context: accessToken,
       instagramAccountId: automation.instagramAccount.instagramId,
-      userId: userId,
+      userId,
       text: bodyText,
-      buttons: buttons,
+      buttons,
     });
   } catch (buttonError) {
-    // A closed messaging window rejects the text retry too, so don't let it
-    // overwrite the original error with a misleading one.
     if (!isTemplateRejection(buttonError)) throw buttonError;
 
     console.log(
@@ -247,7 +198,7 @@ async function sendRevealDirectMessage({
       await sendDirectMessage({
         context: accessToken,
         instagramAccountId: automation.instagramAccount.instagramId,
-        userId: userId,
+        userId,
         message: buildInlineLinkFallback(
           automation.dmMessage,
           commenterName,
@@ -261,6 +212,52 @@ async function sendRevealDirectMessage({
   }
 }
 
+// Deterministic job id dedupes repeat taps to one follow-up per user.
+async function scheduleFollowUp(
+  automation: {
+    id: string;
+    instagramAccountId: string;
+    instagramAccount: { instagramId: string };
+    followUpEnabled: boolean;
+    followUpMessage: string | null;
+    followUpDelayMinutes: number | null;
+  },
+  userId: string,
+  commenterName: string | null,
+): Promise<void> {
+  if (!automation.followUpEnabled || !automation.followUpMessage?.trim()) return;
+  await getDMQueue().add(
+    FOLLOWUP_JOB_NAME,
+    {
+      instagramAccountId: automation.instagramAccount.instagramId,
+      accountConnectionId: automation.instagramAccountId,
+      userId,
+      automationId: automation.id,
+      commenterName,
+    },
+    {
+      delay: Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000,
+      jobId: `followup_${automation.id}_${userId}`,
+    },
+  );
+}
+
+// Returns the context, or the DmLog error message when none can be built.
+async function loadContext(
+  account: Parameters<typeof createInstagramContext>[0],
+  operationId: string,
+): Promise<InstagramContext | string> {
+  if (!hasInstagramCredentials(account)) return "No Instagram access token available";
+  try {
+    return await createInstagramContext(account, operationId);
+  } catch {
+    return "Failed to decrypt Instagram access token";
+  }
+}
+
+function logWhere(automationId: string, commentId: string) {
+  return { automationId_commentId: { automationId, commentId } };
+}
 
 function connectionScope(data: DmQueueJob) {
   return data.accountConnectionId ? { instagramAccountId: data.accountConnectionId } : {};
@@ -281,10 +278,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   const automations = await prisma.automation.findMany({
     where: {
       ...connectionScope(job.data),
-      // Match campaigns bound to this specific post, plus any-post campaigns.
-      // A comment left on an ad carries the ad's own media id, while the
-      // campaign is bound to the post the ad was created from, so both ids
-      // have to be considered or the comment is dropped without a trace.
+      // Ad comments carry the ad's media id but campaigns bind to the source post, so match both.
       OR: [
         { postId: mediaId },
         ...(originalMediaId ? [{ postId: originalMediaId }] : []),
@@ -311,7 +305,6 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   });
 
   for (const automation of automations) {
-    // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
       ? { matched: true, matchedKeyword: null }
       : matchKeywords(
@@ -325,17 +318,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     }
 
     const existingLog = await prisma.dmLog.findUnique({
-      where: {
-        automationId_commentId: {
-          automationId: automation.id,
-          commentId,
-        },
-      },
+      where: logWhere(automation.id, commentId),
     });
 
     if (existingLog?.status === "FAILED" && hasLegacyUnconfirmedDelivery(existingLog.errorMessage)) {
       await prisma.dmLog.update({
-        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        where: logWhere(automation.id, commentId),
         data: { dmDeliveryUnconfirmed: true },
       });
       existingLog.dmDeliveryUnconfirmed = true;
@@ -346,10 +334,8 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     const needsDm = !alreadyDmd && !existingLog?.dmDeliveryUnconfirmed &&
       (existingLog?.attempts ?? 0) < MAX_COMMENT_SEND_ATTEMPTS;
 
-    // Skip only when there is genuinely nothing left to do. A comment whose DM
-    // already sent but whose public reply never posted (e.g. it hit a rate
-    // limit) must still come back so the public reply can be retried.
     if (existingLog?.status === "SKIPPED_PLAN_LIMIT") continue;
+    // A sent DM with an unposted public reply must still come back so the reply can be retried.
     if (
       !needsDm &&
       (alreadyPublicReplied || existingLog?.publicReplyDeliveryUnconfirmed || !automation.publicReplyEnabled)
@@ -357,14 +343,10 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       continue;
     }
 
-    if (!hasInstagramCredentials(automation.instagramAccount)) {
+    const accessToken = await loadContext(automation.instagramAccount, `${job.id}:${automation.id}`);
+    if (typeof accessToken === "string") {
       await prisma.dmLog.upsert({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId,
-          },
-        },
+        where: logWhere(automation.id, commentId),
         create: {
           workspaceId: automation.workspaceId,
           automationId: automation.id,
@@ -375,52 +357,15 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           commentId,
           matchedKeyword: matchResult.matchedKeyword,
           status: "FAILED",
-          errorMessage: "No Instagram access token available",
+          errorMessage: accessToken,
         },
-        update: {
-          status: "FAILED",
-          errorMessage: "No Instagram access token available",
-        },
-      });
-      continue;
-    }
-
-    let accessToken: InstagramContext;
-    try {
-      accessToken = await createInstagramContext(
-        automation.instagramAccount,
-        `${job.id}:${automation.id}`
-      );
-    } catch {
-      await prisma.dmLog.upsert({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId,
-          },
-        },
-        create: {
-          workspaceId: automation.workspaceId,
-          automationId: automation.id,
-          instagramAccountId: automation.instagramAccountId,
-          commenterId,
-          commenterName,
-          commentText,
-          commentId,
-          matchedKeyword: matchResult.matchedKeyword,
-          status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
-        },
-        update: {
-          status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
-        },
+        update: { status: "FAILED", errorMessage: accessToken },
       });
       continue;
     }
 
     await prisma.dmLog.upsert({
-      where: { automationId_commentId: { automationId: automation.id, commentId } },
+      where: logWhere(automation.id, commentId),
       create: {
         workspaceId: automation.workspaceId,
         automationId: automation.id,
@@ -432,9 +377,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       update: {},
     });
 
-    // Public reply leg, decoupled from the DM and posted first so a DM failure
-    // (e.g. a non-follower whose messaging is restricted) never suppresses it.
-    // Idempotent across retries via publicReplySentAt.
+    // Public reply goes first so a DM failure (e.g. restricted non-follower) never suppresses it.
     const replyPool =
       automation.publicReplyMessages.length > 0
         ? automation.publicReplyMessages
@@ -457,14 +400,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         });
         await sendCommentReply({
           context: accessToken,
-          commentId: commentId,
+          commentId,
           message: publicReply,
           postId: mediaId,
         });
         await prisma.dmLog.update({
-          where: {
-            automationId_commentId: { automationId: automation.id, commentId },
-          },
+          where: logWhere(automation.id, commentId),
           data: { publicReplySentAt: new Date(), publicReplyError: null, publicReplyDeliveryUnconfirmed: false },
         });
       } catch (error) {
@@ -474,29 +415,17 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         );
         await prisma.dmLog
           .update({
-            where: {
-              automationId_commentId: {
-                automationId: automation.id,
-                commentId,
-              },
-            },
+            where: logWhere(automation.id, commentId),
             data: { publicReplyError: formatError(classifySendError(error)), publicReplyDeliveryUnconfirmed: !isConfirmedSendRejection(error) },
           })
           .catch(() => {});
       }
     }
 
-    // DM already sent on an earlier pass; the public reply retry above was all
-    // this run needed. Don't re-send the DM.
     if (!needsDm) continue;
 
-    // Meta allows exactly ONE private reply per comment, ever, across every
-    // campaign. When several campaigns match the same comment (duplicated
-    // campaigns, or an any-post campaign overlapping a post-specific one), only
-    // the first can deliver; the rest would fail with "The comment is invalid
-    // for a private reply". Skip them explicitly instead of burning an API call
-    // and logging a failure the user can do nothing about. The public reply
-    // above still goes out per campaign, only the DM leg is deduped.
+    // Meta allows ONE private reply per comment across all campaigns; later matches would fail
+    // with "invalid for a private reply", so skip them. Public replies still go out per campaign.
     const privateReplyUsedBy = await prisma.dmLog.findFirst({
       where: {
         commentId,
@@ -507,9 +436,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     });
     if (privateReplyUsedBy) {
       await prisma.dmLog.update({
-        where: {
-          automationId_commentId: { automationId: automation.id, commentId },
-        },
+        where: logWhere(automation.id, commentId),
         data: {
           status: "SKIPPED_DEDUP",
           matchedKeyword: matchResult.matchedKeyword,
@@ -522,12 +449,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     const usage = await reserveWorkspaceDMSend(automation.workspaceId);
     if (!usage.allowed) {
       await prisma.dmLog.update({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId,
-          },
-        },
+        where: logWhere(automation.id, commentId),
         data: {
           status: "SKIPPED_PLAN_LIMIT",
           matchedKeyword: matchResult.matchedKeyword,
@@ -546,12 +468,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         usage.periodStart
       );
       await prisma.dmLog.update({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId,
-          },
-        },
+        where: logWhere(automation.id, commentId),
         data: {
           status: "FAILED",
           errorMessage: formatError(error),
@@ -568,12 +485,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
 
       if (rateLimit.shouldSkip) {
         await prisma.dmLog.update({
-          where: {
-            automationId_commentId: {
-              automationId: automation.id,
-              commentId,
-            },
-          },
+          where: logWhere(automation.id, commentId),
           data: {
             status: "SKIPPED_RATE_LIMIT",
             matchedKeyword: matchResult.matchedKeyword,
@@ -585,12 +497,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
 
       if (rateLimit.shouldRequeue) {
         await prisma.dmLog.update({
-          where: {
-            automationId_commentId: {
-              automationId: automation.id,
-              commentId,
-            },
-          },
+          where: logWhere(automation.id, commentId),
           data: {
             status: "PENDING",
             matchedKeyword: matchResult.matchedKeyword,
@@ -613,19 +520,13 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       }
     }
 
-    // With an opening DM, the private reply is a button message; tapping it
-    // fires a postback that delivers the reveal (see processPostback). Without
-    // one, we send the reveal text directly as today.
     const useOpeningDm =
       automation.openingDmEnabled &&
       Boolean(automation.openingDmMessage) &&
       Boolean(automation.openingDmButtonLabel);
 
-    // Follow-gating: the link is revealed only after a follow. When an opening
-    // DM is enabled it comes FIRST, and its button routes into the follow check
-    // (opening DM → follow gate → link). Without an opening DM, we check follow
-    // status at comment time: confirmed followers get the link now, everyone
-    // else gets the "follow me first" prompt (re-verified on tap).
+    // With an opening DM, its button routes into the follow check (opening DM, gate, link).
+    // Otherwise check now: confirmed followers get the link, everyone else the prompt.
     let sendFollowPrompt = false;
     if (automation.requireFollow && !useOpeningDm) {
       const alreadyFollows = await getUserFollowStatus({
@@ -662,32 +563,28 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         await sendPrivateReplyWithButton({
           context: accessToken,
           instagramAccountId: automation.instagramAccount.instagramId,
-          commentId: commentId,
+          commentId,
           text: openingText,
           buttonTitle: automation.openingDmButtonLabel as string,
-          // The ":open" marker tells a tap here apart from the follow prompt's
-          // own "I'm following" button, which sends the same prefix.
+          // ":open" distinguishes this tap from the follow prompt's button, which shares the prefix.
           payload: `${automation.requireFollow ? "followcheck" : "reveal"}:${automation.id}:open`,
           postId: mediaId,
         });
       } else if (sendFollowPrompt) {
         const promptText = renderMessageWithoutLink({
-          message:
-            automation.followPromptMessage ||
-            "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
+          message: automation.followPromptMessage || DEFAULT_FOLLOW_PROMPT,
           commenterName,
         });
         await sendPrivateReplyWithButton({
           context: accessToken,
           instagramAccountId: automation.instagramAccount.instagramId,
-          commentId: commentId,
+          commentId,
           text: promptText,
           buttonTitle: automation.followPromptButtonLabel || "i'm following",
           payload: `followcheck:${automation.id}`,
           postId: mediaId,
         });
       } else if (automation.trackedLinks.length > 0) {
-        // Try button template first; if Meta rejects it, fall back to inline links.
         const bodyText =
           renderMessageWithoutLink({
             message: automation.dmMessage,
@@ -702,15 +599,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           await sendPrivateReplyWithLinkButton({
             context: accessToken,
             instagramAccountId: automation.instagramAccount.instagramId,
-            commentId: commentId,
+            commentId,
             text: bodyText,
-            buttons: buttons,
+            buttons,
             postId: mediaId,
           });
         } catch (buttonError) {
-          // Only a template rejection is worth retrying as text. Anything else
-          // (closed window, comment already replied to) fails the same way and
-          // would replace the real error with a misleading one.
           if (!isTemplateRejection(buttonError)) throw buttonError;
 
           console.log(
@@ -727,7 +621,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
             await sendPrivateReply({
               context: accessToken,
               instagramAccountId: automation.instagramAccount.instagramId,
-              commentId: commentId,
+              commentId,
               message: fallbackMessage,
               postId: mediaId,
             });
@@ -744,7 +638,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         await sendPrivateReply({
           context: accessToken,
           instagramAccountId: automation.instagramAccount.instagramId,
-          commentId: commentId,
+          commentId,
           message: dmMessage,
           postId: mediaId,
         });
@@ -752,12 +646,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
 
       delivered = true;
       await prisma.dmLog.update({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId,
-          },
-        },
+        where: logWhere(automation.id, commentId),
         data: {
           status: "SENT",
           dmSentAt: new Date(),
@@ -767,13 +656,13 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       });
     } catch (error) {
       const sendError = classifySendError(error);
-      // Retain reservations if the provider may have delivered the message.
+      // Keep reservations when the provider may have delivered anyway.
       if (isConfirmedSendRejection(sendError)) {
         if (rateLimit?.reserved) await releaseDMSlot(instagramAccountId);
         await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
       }
       await prisma.dmLog.update({
-        where: { automationId_commentId: { automationId: automation.id, commentId } },
+        where: logWhere(automation.id, commentId),
         data: {
           status: delivered ? "SENT" : "FAILED",
           ...(delivered ? { dmSentAt: new Date() } : {}),
@@ -809,8 +698,7 @@ async function sendPostbackOnce({
     await send();
     return true;
   } catch (error) {
-    // A durable claim survives queue eviction, concurrent redelivery, and a
-    // process crash during delivery. Only confirmed rejections permit retry.
+    // The durable claim survives eviction, redelivery and crashes; only confirmed rejections may retry.
     if (isConfirmedSendRejection(error)) {
       await prisma.postbackDelivery.delete({ where: { id: operationId } });
       throw error;
@@ -819,10 +707,7 @@ async function sendPostbackOnce({
   }
 }
 
-// Tells someone whose "I'm following" tap is being re-checked that it is being
-// looked at, so the chat does not sit silent while Instagram catches up with
-// the follow. Opt-in through FOLLOW_RECHECK_ACK_MESSAGE, and best-effort: it
-// never holds up the re-check, which is already queued when this runs.
+// Opt-in, best-effort "checking your follow" reply so the chat isn't silent during a re-check.
 async function sendFollowRecheckAck({
   context,
   instagramAccountId,
@@ -839,8 +724,7 @@ async function sendFollowRecheckAck({
   const message = process.env.FOLLOW_RECHECK_ACK_MESSAGE?.trim();
   if (!message) return;
   try {
-    // One acknowledgement per re-check cycle: a burst of taps collapses into a
-    // single re-check (bucketed job id) and should get a single reply too.
+    // One ack per re-check cycle, matching the bucketed re-check job id.
     const first = await getRedisConnection().set(
       `follow_recheck_ack:${automationId}:${userId}`,
       "1",
@@ -851,9 +735,7 @@ async function sendFollowRecheckAck({
     if (first !== "OK") return;
     const send = () =>
       sendDirectMessage({ context, instagramAccountId, userId, message });
-    // Its own id: the tap's id is claimed later by the link or prompt that
-    // the re-check sends, and claiming it here would suppress that message.
-    // Without an id the Redis NX claim above is the only dedup.
+    // Own id: the tap's id is claimed later by the re-check's link or prompt.
     if (operationId) {
       await sendPostbackOnce({ operationId: `${operationId}:ack`, send });
     } else {
@@ -867,18 +749,12 @@ async function sendFollowRecheckAck({
   }
 }
 
-/**
- * Deliver the reveal message after a user taps an opening DM's button.
- * The postback payload is `reveal:<automationId>`; the sender is the user's
- * IGSID (same id as their comment author id), which we DM directly.
- */
 async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   const { instagramAccountId, userId, payload, fallback } = job.data;
 
   const isFollowCheck = payload.startsWith("followcheck:");
   if (!isFollowCheck && !payload.startsWith("reveal:")) return;
-  // The opening DM's button appends ":open" to the payload; the follow
-  // prompt's button does not. Automation ids are cuids and contain no colon.
+  // Automation ids are cuids and contain no colon.
   const [automationId, marker] = payload
     .slice(isFollowCheck ? "followcheck:".length : "reveal:".length)
     .split(":");
@@ -904,18 +780,12 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     return;
   }
 
-  // Duplicate sends are enabled: every button tap re-sends the reveal
-  // instead of only firing once per person.
+  // Not a send dedup: every tap re-sends the reveal. Keys the log row and the read-fallback check.
   const dedupeId = `reveal:${userId}`;
 
   if (fallback) {
     const existingReveal = await prisma.dmLog.findUnique({
-      where: {
-        automationId_commentId: {
-          automationId: automation.id,
-          commentId: dedupeId,
-        },
-      },
+      where: logWhere(automation.id, dedupeId),
     });
     if (
       existingReveal?.status === "SENT" ||
@@ -924,22 +794,14 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       return;
   }
 
-  // Personalize {username} from the opening DM log for this user, if present.
   const openingLog = await prisma.dmLog.findFirst({
     where: { automationId: automation.id, commenterId: userId },
     select: { commenterName: true },
   });
   const commenterName = openingLog?.commenterName ?? null;
 
-  let accessToken: InstagramContext;
-  try {
-    accessToken = await createInstagramContext(
-      automation.instagramAccount,
-      `${job.id}:${automation.id}`,
-    );
-  } catch {
-    return;
-  }
+  const accessToken = await loadContext(automation.instagramAccount, `${job.id}:${automation.id}`);
+  if (typeof accessToken === "string") return;
 
   const operationId = createHash("sha256")
     .update(JSON.stringify([
@@ -950,42 +812,21 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     ]))
     .digest("hex");
 
-  // Follow-gate: before revealing the link, verify the user follows. On a
-  // `followcheck:` tap a non-follower gets the prompt again (no quota spent);
-  // on a read fallback a non-follower is silently skipped, the gate must not
-  // be bypassable by just reading the DM and waiting. On a tap, following or
-  // unverifiable (null) falls through and delivers the link, fail-open so a
-  // real follower is never trapped.
+  // A tap fails open on null so a real follower is never trapped; a read fallback must not, or
+  // reading and waiting would bypass the gate.
   if ((isFollowCheck || fallback) && automation.requireFollow) {
     const follows = await getUserFollowStatus({
       context: accessToken,
       recipientId: userId,
     });
-    // A read fallback needs a confirmed follow. Instagram only reports follow
-    // status once the person has tapped a button (before that it answers
-    // "User consent is required", i.e. null), so failing open here handed the
-    // link to anyone who read the opening DM and waited, follower or not.
+    // Before any tap Instagram answers "User consent is required" (null), so require true here.
     if (fallback && follows !== true) return;
     if (follows === false) {
-      if (fallback) return;
-
-      // A tap on an opening-DM button is not a claim to follow, most people
-      // who tap it simply don't follow yet, so they get the follow prompt
-      // right away. Only the prompt's own button earns the delayed re-check;
-      // holding an opening tap for it left people staring at a silent chat.
+      // An opening-DM tap is not a claim to follow, so it gets the prompt at once; only the
+      // prompt's own button earns re-checks.
       if (!fromOpeningDm) {
-        // A `false` on a button tap: give the follow time to register and look
-        // again, rather than rejecting someone who just followed.
-        //
-        // The job id is bucketed by the recheck window, not fixed per user.
-        // BullMQ keeps completed jobs (removeOnComplete: count 1000) and silently
-        // drops an add whose id is still retained, so a fixed id let a person be
-        // re-checked once and then never again, their next false tap did
-        // nothing at all, no link and no prompt. Bucketing still collapses a burst
-        // of taps into a single re-check, which is what the fixed id was for.
-        //
-        // Jobs queued before re-checks were counted carry only `followRecheck`,
-        // which meant one re-check done.
+        // Job id is bucketed by time: BullMQ silently drops adds whose id is still retained
+        // (removeOnComplete), so a fixed id allowed only one re-check per user ever.
         const rechecksDone =
           job.data.followRecheckAttempt ?? (job.data.followRecheck ? 1 : 0);
         if (rechecksDone < FOLLOW_RECHECK_DELAYS_MS.length) {
@@ -1015,10 +856,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           return;
         }
 
-        // Last `false`: they are genuinely not following. Record it, this
-        // branch used to return without writing anything at all, so a gate that
-        // turned people away left no trace and its rejection rate could not be
-        // measured, only guessed at from complaints.
+        // Recorded so the gate's rejection rate can be measured.
         await prisma.operationalEvent
           .create({
             data: {
@@ -1038,9 +876,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       }
 
       const promptText = renderMessageWithoutLink({
-        message:
-          automation.followPromptMessage ||
-          "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
+        message: automation.followPromptMessage || DEFAULT_FOLLOW_PROMPT,
         commenterName,
       });
       try {
@@ -1050,7 +886,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
             sendDirectMessageWithButton({
               context: accessToken,
               instagramAccountId: automation.instagramAccount.instagramId,
-              userId: userId,
+              userId,
               text: promptText,
               buttonTitle:
                 automation.followPromptButtonLabel || "i'm following",
@@ -1070,12 +906,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   const usage = await reserveWorkspaceDMSend(automation.workspaceId);
   if (!usage.allowed) {
     await prisma.dmLog.upsert({
-      where: {
-        automationId_commentId: {
-          automationId: automation.id,
-          commentId: dedupeId,
-        },
-      },
+      where: logWhere(automation.id, dedupeId),
       create: {
         workspaceId: automation.workspaceId,
         automationId: automation.id,
@@ -1097,10 +928,10 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       operationId,
       send: () =>
         sendRevealDirectMessage({
-          accessToken: accessToken,
-          automation: automation,
-          userId: userId,
-          commenterName: commenterName,
+          accessToken,
+          automation,
+          userId,
+          commenterName,
           context: "postback",
         }),
     });
@@ -1111,35 +942,9 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       );
       return;
     }
-    // Optional appreciation follow-up: once the link has been delivered, send a
-    // short thank-you. It is scheduled as its own delayed job so it can go out
-    // some minutes later (followUpDelayMinutes) rather than immediately. The
-    // deterministic job id dedupes repeat button taps to one follow-up per user.
-    if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
-      const delayMs =
-        Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
-      await getDMQueue().add(
-        FOLLOWUP_JOB_NAME,
-        {
-          instagramAccountId: automation.instagramAccount.instagramId,
-          accountConnectionId: automation.instagramAccountId,
-          userId,
-          automationId: automation.id,
-          commenterName,
-        },
-        {
-          delay: delayMs,
-          jobId: `followup_${automation.id}_${userId}`,
-        },
-      );
-    }
+    await scheduleFollowUp(automation, userId, commenterName);
     await prisma.dmLog.upsert({
-      where: {
-        automationId_commentId: {
-          automationId: automation.id,
-          commentId: dedupeId,
-        },
-      },
+      where: logWhere(automation.id, dedupeId),
       create: {
         workspaceId: automation.workspaceId,
         automationId: automation.id,
@@ -1160,13 +965,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       usage.periodStart,
     );
 
-    // The read fallback is speculative: it only runs when the user read the
-    // opening DM and never tapped the button, which means they never messaged
-    // us, which means the 24-hour window is closed and Meta rejects the send
-    // ("outside of allowed window"). That is the expected outcome here, not a
-    // failure the user can act on, so don't log it as FAILED and don't retry
-    // it against a window that cannot reopen on its own. It still delivers in
-    // the case that does work: the user replied by typing instead of tapping.
+    // A read fallback usually hits a closed 24h window (user never messaged us). Expected, so
+    // don't log FAILED or retry; it only delivers when the user typed a reply instead of tapping.
     if (fallback && !isDeliveryUnconfirmed(error)) {
       console.log(
         "[DM Worker] Read fallback not delivered (messaging window closed):",
@@ -1176,12 +976,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     }
 
     await prisma.dmLog.upsert({
-      where: {
-        automationId_commentId: {
-          automationId: automation.id,
-          commentId: dedupeId,
-        },
-      },
+      where: logWhere(automation.id, dedupeId),
       create: {
         workspaceId: automation.workspaceId,
         automationId: automation.id,
@@ -1204,11 +999,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   }
 }
 
-/**
- * Send the scheduled appreciation follow-up. Runs after its delay elapses.
- * Best-effort: if the message can't be delivered (e.g. the 24-hour messaging
- * window closed because the delay was long), it is logged, not retried forever.
- */
+// Best-effort: a long delay may outlive the 24h window, so failures are logged, not retried.
 async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   const { instagramAccountId, userId, automationId, commenterName } = job.data;
 
@@ -1221,27 +1012,19 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
     !automation ||
     !automation.followUpEnabled ||
     !automation.followUpMessage?.trim() ||
-    automation.instagramAccount.instagramId !== instagramAccountId ||
-    !hasInstagramCredentials(automation.instagramAccount)
+    automation.instagramAccount.instagramId !== instagramAccountId
   ) {
     return;
   }
 
-  let accessToken: InstagramContext;
-  try {
-    accessToken = await createInstagramContext(
-      automation.instagramAccount,
-      `${job.id}:${automation.id}`
-    );
-  } catch {
-    return;
-  }
+  const accessToken = await loadContext(automation.instagramAccount, `${job.id}:${automation.id}`);
+  if (typeof accessToken === "string") return;
 
   try {
     await sendDirectMessage({
       context: accessToken,
       instagramAccountId: automation.instagramAccount.instagramId,
-      userId: userId,
+      userId,
       message: renderMessageWithoutLink({
         message: automation.followUpMessage,
         commenterName: commenterName ?? null,
@@ -1255,14 +1038,7 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
   }
 }
 
-/**
- * Reply to an inbound DM whose text matches a campaign's keywords.
- *
- * The user has messaged us, so the conversation is already open: this path
- * skips the opening DM (which exists to work around private-reply limits from
- * comments) and delivers the reveal directly, honouring the follow gate.
- * Dedup is per inbound message id, so each message triggers at most one reply.
- */
+// Conversation is already open, so no opening DM; dedup is per inbound message id.
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId } = job.data;
 
@@ -1298,16 +1074,9 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     if (!matchResult.matched) continue;
 
     const existingLog = await prisma.dmLog.findUnique({
-      where: {
-        automationId_commentId: {
-          automationId: automation.id,
-          commentId: dedupeId,
-        },
-      },
+      where: logWhere(automation.id, dedupeId),
     });
 
-    // Already replied to this message (or deliberately skipped it), a retry
-    // of the job must not send a second DM.
     if (
       existingLog?.status === "SENT" ||
       existingLog?.status === "SKIPPED_PLAN_LIMIT" ||
@@ -1326,69 +1095,24 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
       matchedKeyword: matchResult.matchedKeyword,
     };
 
-    if (!hasInstagramCredentials(automation.instagramAccount)) {
+    const accessToken = await loadContext(automation.instagramAccount, `${job.id}:${automation.id}`);
+    if (typeof accessToken === "string") {
       await prisma.dmLog.upsert({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId: dedupeId,
-          },
-        },
-        create: {
-          ...logBase,
-          status: "FAILED",
-          errorMessage: "No Instagram access token available",
-        },
-        update: {
-          status: "FAILED",
-          errorMessage: "No Instagram access token available",
-        },
+        where: logWhere(automation.id, dedupeId),
+        create: { ...logBase, status: "FAILED", errorMessage: accessToken },
+        update: { status: "FAILED", errorMessage: accessToken },
       });
       continue;
     }
 
-    let accessToken: InstagramContext;
-    try {
-      accessToken = await createInstagramContext(
-        automation.instagramAccount,
-        `${job.id}:${automation.id}`
-      );
-    } catch {
-      await prisma.dmLog.upsert({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId: dedupeId,
-          },
-        },
-        create: {
-          ...logBase,
-          status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
-        },
-        update: {
-          status: "FAILED",
-          errorMessage: "Failed to decrypt Instagram access token",
-        },
-      });
-      continue;
-    }
-
-    // Reuse a name captured on an earlier interaction so {username} still
-    // renders, the messages webhook carries only the sender's IGSID.
+    // The messages webhook carries only the IGSID, so reuse an earlier name for {username}.
     const priorLog = await prisma.dmLog.findFirst({
       where: { automationId: automation.id, commenterId: senderId },
       select: { commenterName: true },
     });
     const commenterName = priorLog?.commenterName ?? null;
 
-    // Follow gate: anyone not confirmed as a follower gets the prompt instead of
-    // the link, with the same `followcheck:` button that re-verifies on tap.
-    // `null` (unverifiable) prompts too, this is first contact, exactly like a
-    // comment, so it follows processComment's fail-closed rule rather than the
-    // postback path's fail-open one. Fail-open is only safe after a tap, where
-    // the user has already claimed to follow; here it would hand the link to
-    // anyone whose status the API happens not to resolve.
+    // First contact, so fail closed on null like processComment; fail-open is only safe after a tap.
     let sendFollowPrompt = false;
     if (automation.requireFollow) {
       const follows = await getUserFollowStatus({
@@ -1404,12 +1128,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
     const usage = await reserveWorkspaceDMSend(automation.workspaceId);
     if (!usage.allowed) {
       await prisma.dmLog.upsert({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId: dedupeId,
-          },
-        },
+        where: logWhere(automation.id, dedupeId),
         create: {
           ...logBase,
           status: "SKIPPED_PLAN_LIMIT",
@@ -1441,41 +1160,17 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         });
       } else {
         await sendRevealDirectMessage({
-          accessToken: accessToken,
-          automation: automation,
+          accessToken,
+          automation,
           userId: senderId,
-          commenterName: commenterName,
+          commenterName,
           context: "message trigger",
         });
-
-        // The link has been delivered, so the appreciation follow-up applies
-        // here exactly as it does after a button tap. Not scheduled behind the
-        // follow prompt, no link went out yet in that branch.
-        if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
-          await getDMQueue().add(
-            FOLLOWUP_JOB_NAME,
-            {
-              instagramAccountId: automation.instagramAccount.instagramId,
-              accountConnectionId: automation.instagramAccountId,
-              userId: senderId,
-              automationId: automation.id,
-              commenterName,
-            },
-            {
-              delay: Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000,
-              jobId: `followup_${automation.id}_${senderId}`,
-            }
-          );
-        }
+        await scheduleFollowUp(automation, senderId, commenterName);
       }
 
       await prisma.dmLog.upsert({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId: dedupeId,
-          },
-        },
+        where: logWhere(automation.id, dedupeId),
         create: {
           ...logBase,
           commenterName,
@@ -1494,12 +1189,7 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         usage.periodStart
       );
       await prisma.dmLog.upsert({
-        where: {
-          automationId_commentId: {
-            automationId: automation.id,
-            commentId: dedupeId,
-          },
-        },
+        where: logWhere(automation.id, dedupeId),
         create: {
           ...logBase,
           commenterName,
@@ -1520,26 +1210,14 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   }
 }
 
-async function dispatchJob(job: Job<DmQueueJob>): Promise<void> {
-  if (job.name === POSTBACK_JOB_NAME) {
-    return processPostback(job as Job<ProcessPostbackJob>);
-  }
-  if (job.name === FOLLOWUP_JOB_NAME) {
-    return processFollowUp(job as Job<ProcessFollowUpJob>);
-  }
-  if (job.name === MESSAGE_JOB_NAME) {
-    return processMessage(job as Job<ProcessMessageJob>);
-  }
-  return processComment(job as Job<ProcessCommentJob>);
-}
-
 async function processJob(job: Job<DmQueueJob>): Promise<void> {
   try {
-    await dispatchJob(job);
+    if (job.name === POSTBACK_JOB_NAME) await processPostback(job as Job<ProcessPostbackJob>);
+    else if (job.name === FOLLOWUP_JOB_NAME) await processFollowUp(job as Job<ProcessFollowUpJob>);
+    else if (job.name === MESSAGE_JOB_NAME) await processMessage(job as Job<ProcessMessageJob>);
+    else await processComment(job as Job<ProcessCommentJob>);
   } catch (error) {
-    // formatError() takes unknown; isDeliveryUnconfirmed() is a type guard on
-    // Error subclasses, but keep using formatError() for a consistent message
-    // format across every UnrecoverableError thrown from this worker.
+    // Retrying a possibly-delivered send would duplicate the DM.
     if (isDeliveryUnconfirmed(error))
       throw new UnrecoverableError(formatError(error));
     throw error;

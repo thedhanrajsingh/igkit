@@ -8,15 +8,12 @@ import {
 } from "@/lib/instagram/provider";
 
 export interface FollowerHistoryPoint {
-  /** ISO date (YYYY-MM-DD). */
-  date: string;
-  /** Absolute follower total on that day. */
+  date: string; // YYYY-MM-DD
   followers: number;
-  /** Net change from the previous point, when one exists. */
   delta: number | null;
 }
 
-/** Midnight UTC for a date, so one calendar day maps to exactly one row. */
+// Midnight UTC, so one calendar day maps to exactly one row.
 function toUtcDay(value: Date | string): Date {
   const d = typeof value === "string" ? new Date(`${value}T00:00:00Z`) : value;
   return new Date(
@@ -28,12 +25,7 @@ function toIsoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Record today's follower total for an account.
- *
- * Idempotent: running it repeatedly in one day overwrites that day's row
- * rather than adding another, so the daily cron is safe to retry.
- */
+// Idempotent per day, so the daily cron is safe to retry.
 export async function recordFollowerSnapshot(
   instagramAccountId: string,
   followersCount: number
@@ -43,23 +35,13 @@ export async function recordFollowerSnapshot(
   await prisma.followerSnapshot.upsert({
     where: { instagramAccountId_date: { instagramAccountId, date } },
     create: { instagramAccountId, date, followersCount, backfilled: false },
-    // An observed count always supersedes a backfilled estimate for the day.
+    // An observed count supersedes a backfilled estimate.
     update: { followersCount, backfilled: false },
   });
 }
 
-/**
- * Turn daily net-change deltas into absolute daily totals.
- *
- * Walks backwards from a known present-day total: if the account has N
- * followers today and gained d followers today, it had N - d at the start of
- * today. Input may be in any date order; output is ascending by date.
- *
- * Stops early if the running total would go negative, which means the deltas
- * disagree with the current count (a gap in Instagram's reporting, or a count
- * fetched at a different time than the series). Better to return a short,
- * consistent history than a long, wrong one.
- */
+// Walks deltas backwards from today's total. Stops if the total goes negative
+// (deltas disagree with the count): a short consistent history beats a wrong one.
 export function reconstructFollowerTotals(
   series: FollowerCountPoint[],
   currentFollowers: number
@@ -78,17 +60,8 @@ export function reconstructFollowerTotals(
   return out.reverse();
 }
 
-/**
- * Reconstruct up to 30 days of history from follower_count insight deltas and
- * store it, so a freshly connected account has a chart on day one instead of a
- * single point.
- *
- * Rows are marked `backfilled` because they are derived, and never overwrite a
- * directly observed snapshot.
- *
- * Returns the number of days written. Zero means the insight metric was
- * unavailable, which is expected for small or unsupported accounts.
- */
+// Derived rows are marked `backfilled` and never overwrite an observed snapshot.
+// Returns days written; zero is expected for small or unsupported accounts.
 export async function backfillFollowerHistory({
   instagramAccountId,
   accessToken,
@@ -154,10 +127,6 @@ export async function backfillFollowerHistory({
   return writable.length;
 }
 
-/**
- * Read stored follower history for an account, most recent `days` first
- * converted to ascending order for charting.
- */
 export async function getFollowerHistory(
   instagramAccountId: string,
   days: number = 90
@@ -178,11 +147,7 @@ export async function getFollowerHistory(
   }));
 }
 
-/**
- * Ensure an account has a current snapshot and, the first time we ever see it,
- * a backfilled history. Called from the overview endpoint so the chart fills in
- * without waiting for the next cron run.
- */
+// Called from the overview endpoint so the chart fills in before the next cron.
 export async function ensureFollowerHistory(
   account: { id: string; instagramId: string },
   accessToken: InstagramContext
@@ -190,7 +155,7 @@ export async function ensureFollowerHistory(
   if (accessToken.provider === "ZERNIO") {
     await backfillFollowerHistory({
       instagramAccountId: account.id,
-      accessToken: accessToken,
+      accessToken,
       instagramId: account.instagramId,
       currentFollowers: 0,
     });
@@ -209,7 +174,7 @@ export async function ensureFollowerHistory(
   if (count <= 1) {
     await backfillFollowerHistory({
       instagramAccountId: account.id,
-      accessToken: accessToken,
+      accessToken,
       instagramId: account.instagramId,
       currentFollowers: followers,
     });

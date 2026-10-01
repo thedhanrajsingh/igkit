@@ -2,9 +2,8 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 
-// The primary button's title is stored on the campaign as `linkButtonLabel`,
-// so the primary link's own label is only a placeholder. Every later link
-// stores its button title in `label`.
+// The primary button's title lives on the campaign (`linkButtonLabel`), so this
+// label is a placeholder; later links store their title in `label`.
 export const PRIMARY_LINK_LABEL = "Primary campaign link";
 export const DEFAULT_LINK_BUTTON_LABEL = "Open link";
 
@@ -16,9 +15,6 @@ type LinkFields = {
   secondaryLabel?: string | null;
 };
 
-/**
- * The tracked links for a new campaign, numbered in button order.
- */
 export function buildInitialCampaignLinks({
   workspaceId,
   primaryUrl,
@@ -54,25 +50,8 @@ export function buildInitialCampaignLinks({
 
 type StoredLink = { id: string; position: number };
 
-/**
- * Apply a campaign save to its tracked links. The first link is the primary
- * button, the second is the second button, and any after that are kept as
- * they are.
- *
- * The links are read once, before anything is written, and every change
- * targets a link by id. Reading them again after a write is what used to go
- * wrong: an update moves a row on disk, so when both links shared a createdAt
- * the second read could return them swapped, and the second button's URL was
- * written over the first link.
- *
- * Positions are then renumbered to match the result, which closes the gap a
- * removed link leaves and repairs links an older build wrote without one.
- *
- * Call it in the same transaction as the campaign update, after it. That
- * update locks the campaign row until the transaction ends, so two saves of
- * one campaign run one after the other and cannot both create the same
- * missing link.
- */
+// Read links once and target by id: re-reading after a write could swap tied
+// rows. Call after the campaign update in one transaction, which serializes saves.
 export async function syncCampaignLinks(
   tx: Prisma.TransactionClient,
   {

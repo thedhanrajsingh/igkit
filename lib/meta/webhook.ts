@@ -6,10 +6,8 @@ export function verifyWebhookSignature(
 ): boolean {
   if (!signature) return false;
 
-  // Instagram-Login apps sign webhooks with the Instagram app secret, while
-  // Facebook-Login apps use the Facebook app secret. Both belong to the same
-  // app, so accept a signature that matches either, this avoids a config
-  // guess about which key Meta uses for a given app type.
+  // Instagram-Login apps sign with the Instagram secret, Facebook-Login apps
+  // with the Facebook one; accept either rather than guess the app type.
   const secrets = [
     process.env.FACEBOOK_APP_SECRET,
     process.env.INSTAGRAM_APP_SECRET,
@@ -39,11 +37,8 @@ export interface WebhookCommentEvent {
   commenterId: string;
   commenterName?: string;
   mediaId: string;
-  /**
-   * Set only when the comment was left on an ad: the id of the organic post
-   * the ad was created from. Campaigns are configured against that post, so
-   * matching has to consider it as well as mediaId.
-   */
+  // Set only for comments on an ad: the organic post it was boosted from,
+  // which is what campaigns are configured against.
   originalMediaId?: string;
 }
 
@@ -62,8 +57,7 @@ interface WebhookEntry {
       };
       media?: {
         id?: string;
-        // Present when media_product_type is "AD": the ad copy gets its own
-        // media id, and this points back to the post it was boosted from.
+        // Present for ads: points back to the post the ad was boosted from.
         original_media_id?: string;
         ad_id?: string;
         media_product_type?: string;
@@ -126,9 +120,6 @@ export function parseCommentEvents(payload: WebhookPayload): WebhookCommentEvent
       const value = change.value;
       const commentId = value?.id ?? value?.comment_id;
       const mediaId = value?.media?.id ?? value?.media_id;
-      // A comment on a boosted post arrives with the ad's media id, while the
-      // campaign is set up against the organic post. Keep both so the worker
-      // can match either one.
       const originalMediaId =
         value?.media?.original_media_id === mediaId
           ? undefined
@@ -139,9 +130,7 @@ export function parseCommentEvents(payload: WebhookPayload): WebhookCommentEvent
         continue;
       }
 
-      // Skip the connected account's own comments and comment replies.
-      // A private reply to yourself is rejected by Meta, so queueing one
-      // only produces a failed log and wasted retries.
+      // Meta rejects a private reply to yourself, so skip the account's own comments.
       if (commenterId === entry.id) {
         continue;
       }
@@ -161,10 +150,6 @@ export function parseCommentEvents(payload: WebhookPayload): WebhookCommentEvent
   return events;
 }
 
-/**
- * Parse button-tap postbacks (from an opening DM's button) out of a webhook
- * payload. Each event carries the tapping user's IGSID and our postback payload.
- */
 export function parsePostbackEvents(
   payload: WebhookPayload
 ): WebhookPostbackEvent[] {
@@ -179,7 +164,6 @@ export function parsePostbackEvents(
       const accountId = entry.id ?? messaging.recipient?.id;
 
       if (!postbackPayload || !userId || !accountId) continue;
-      // Ignore echoes of the account's own actions.
       if (userId === accountId) continue;
 
       events.push({
@@ -194,16 +178,8 @@ export function parsePostbackEvents(
   return events;
 }
 
-/**
- * Parse inbound Instagram DMs out of a webhook payload. These drive the
- * keyword-triggered autoreply: a user messages the account, and a campaign
- * with `dmTriggerEnabled` whose keywords match the text replies to them.
- *
- * Echoes (messages the account itself sent, including our own autoreplies),
- * deletions, and attachment-only messages with no text are dropped here so
- * the worker never sees them, an echo would otherwise let an autoreply
- * containing its own keyword trigger itself.
- */
+// Echoes must be dropped: an autoreply containing its own keyword would
+// otherwise trigger itself.
 export function parseMessageEvents(
   payload: WebhookPayload
 ): WebhookMessageEvent[] {
@@ -225,7 +201,6 @@ export function parseMessageEvents(
       const accountId = entry.id ?? messaging.recipient?.id;
 
       if (!text || !messageId || !senderId || !accountId) continue;
-      // Ignore anything the connected account sent to itself.
       if (senderId === accountId) continue;
 
       events.push({
@@ -240,11 +215,6 @@ export function parseMessageEvents(
   return events;
 }
 
-/**
- * Parse Instagram DM read receipts. When a user reads an opening DM but does
- * not tap its button, the webhook route uses this to schedule the reveal after
- * a short grace period.
- */
 export function parseReadEvents(payload: WebhookPayload): WebhookReadEvent[] {
   const events: WebhookReadEvent[] = [];
 

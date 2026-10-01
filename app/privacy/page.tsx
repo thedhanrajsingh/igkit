@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalShell from "@/components/legal-shell";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy - IGKit",
+  title: "Privacy Policy",
   description:
     "How IGKit handles Instagram account data, webhook payloads, billing data, and customer campaign information.",
 };

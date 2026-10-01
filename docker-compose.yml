@@ -1,5 +1,4 @@
-# IGKit, Local Development Services
-# Run: docker-compose up -d
+# Local dev Postgres and Redis only: docker compose up -d
 
 services:
   postgres:

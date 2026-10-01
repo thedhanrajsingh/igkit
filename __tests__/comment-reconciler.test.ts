@@ -1,9 +1,5 @@
-/**
- * Comment reconciliation, ad copies of a boosted post.
- *
- * Comments left on an ad carry the ad's own media id, so the sweep has to look
- * at those media too or a webhook Meta never delivers is lost for good.
- */
+// Ad comments carry the ad's own media id, so the sweep must check those media
+// too, or a comment whose webhook Meta never delivers is lost for good.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

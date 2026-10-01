@@ -2,13 +2,6 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-/**
- * Post Picker
- *
- * Grid of Instagram post thumbnails, selectable.
- * Fetches from /api/instagram/posts.
- */
-
 import { useI18n } from "@/lib/i18n/provider";
 import { useEffect, useState } from "react";
 import { readCache, writeCache } from "@/lib/client-cache";
@@ -28,7 +21,7 @@ interface InstagramPost {
 interface PostPickerProps {
   selectedPostId: string | null;
   instagramAccountId?: string | null;
-  /** postId -> name of the campaign already using it. Flagged in the grid. */
+  /** postId -> name of the campaign already using it. */
   usedPostIds?: Record<string, string>;
   onSelect: (
     postId: string,
@@ -50,11 +43,10 @@ export default function PostPicker({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  // The post currently hovered, its video (if it's a reel) plays a preview.
+  // A hovered reel plays a preview.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  // The grid loads the whole library (all=true). On accounts with hundreds of
-  // posts, rendering every tile at once is enough to make mobile Safari drop
-  // the page, so they are revealed in batches.
+  // Rendering hundreds of tiles at once makes mobile Safari drop the page, so
+  // the full library is revealed in batches.
   const [shown, setShown] = useState(PAGE_SIZE);
 
   useEffect(() => {
@@ -63,14 +55,10 @@ export default function PostPicker({
     if (instagramAccountId) {
       params.set("instagramAccountId", instagramAccountId);
     }
-    // Load the full library so older posts/reels are selectable, not just the
-    // most recent page.
     params.set("all", "true");
 
-    // Show the cached library instantly (stale-while-revalidate), then refresh.
     const cacheKey = `ig-posts:${instagramAccountId ?? "default"}`;
     const cached = readCache<InstagramPost[]>(cacheKey, 15 * 60 * 1000);
-    // Hydrating state from cache is a legitimate effect use here.
     /* eslint-disable react-hooks/set-state-in-effect */
     if (cached.data) {
       setPosts(cached.data);
@@ -78,7 +66,7 @@ export default function PostPicker({
     }
     /* eslint-enable react-hooks/set-state-in-effect */
 
-    fetch(`/api/instagram/posts${params.size ? `?${params}` : ""}`)
+    fetch(`/api/instagram/posts?${params}`)
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -146,9 +134,7 @@ export default function PostPicker({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            // Back to one batch on every new search. Without this, a grid
-            // expanded under an earlier query stays expanded once it is
-            // cleared, which is the case this whole change exists to avoid.
+            // Else a grid expanded under an earlier query stays expanded once cleared.
             setShown(PAGE_SIZE);
           }}
           placeholder={t("Search your posts by caption…")}
@@ -168,9 +154,8 @@ export default function PostPicker({
               {t("Already used")}
             </p>
           )}
-          {/* auto-rows-min + content-start keep each row at its natural height.
-              Without them the rows share out max-h-64 instead of scrolling, and
-              the square thumbnails flatten into strips. */}
+          {/* auto-rows-min + content-start: without them rows share out max-h-64
+              instead of scrolling, flattening the square thumbnails into strips. */}
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 auto-rows-min content-start overflow-y-auto p-1">
             {visible.map((post) => {
               const isSelected = selectedPostId === post.id;
