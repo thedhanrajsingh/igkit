@@ -38,6 +38,7 @@ IGKit is built around Meta's official Instagram private replies. It does not scr
 - Optional public reply. Post a visible comment reply on top of the DM.
 - DM and Story reply triggers. The same keywords can also fire on an inbound DM, which covers text replies to your Stories, since Instagram delivers those as DMs. That makes `Reply LINK to this Story` work with no post involved. Turn it on per campaign, and subscribe to the `messages` webhook field if you use your own Meta app. Zernio webhook registration is automatic.
 - Bio page. A Linktree-style link-in-bio page at `yourdomain.com/<handle>`, with themes, reordering, and click counts per link.
+- AI insights (optional). An agent on the dashboard reviews your campaigns, writes one plain-language insight, and suggests fixes such as better DM text, new keywords, or pausing a weak campaign. Nothing changes until you click Apply. Bring your own OpenRouter key. See [AI insights](#ai-insights).
 - Tracked links. Swap a link for a tracked redirect and see clicks and CTR per campaign.
 - Two link buttons. Send up to two tappable link buttons in one DM, each a separate tracked link with its own click stats.
 - Follow gate. Optionally require a follow before you hand over the link. The DM asks the commenter to follow and tap a button; on tap, IGKit checks Meta's `is_user_follow_business` flag and only sends the link once they follow, re-prompting until then. It fails open (sends the link anyway) when Instagram does not return follow status, so a real follower is never trapped.
@@ -60,6 +61,20 @@ IGKit is built around Meta's official Instagram private replies. It does not scr
 5. A background worker sends the private reply, and the public reply if you enabled one.
 
 The web app receives the webhook and serves the dashboard. A separate worker process does the sending, because the send has to survive rate limits and retries. Both talk to the same Postgres and Redis.
+
+## AI insights
+
+The AI Insights card on the dashboard runs a small agent when you press refresh. It reads your campaign settings, their last 30 days of results, and the recent comments that triggered them, then writes one short insight with real numbers, like "Course waitlist failed 58 of 220 sends, all on the follow gate."
+
+When the data points to a clear problem, it can propose up to three fixes:
+
+- New DM text for a campaign. Links and placeholders like `{username}` must stay in.
+- Extra keywords for a campaign.
+- Pausing a campaign.
+
+Owners and admins approve each fix with Apply, or skip it with Dismiss. Apply goes through the same validated update as a manual campaign edit, so the agent never changes anything on its own. Past insights and their fixes stay in a history feed on the card.
+
+To turn it on, an owner or admin pastes an [OpenRouter API key](https://openrouter.ai/settings/keys) in Settings. Each workspace uses its own key, stored encrypted, and usage is billed to that OpenRouter account. Requests go to `typesafe/jev-router`, which picks a model per run (OpenAI, Gemini, DeepSeek and others). The agent only runs when you press refresh, with at most 6 model calls and 3 fixes per run. Commenter names and IDs are never sent, only totals, settings, and comment text.
 
 ## Quick start
 
@@ -107,6 +122,7 @@ If you use Claude Code, Cursor, or a similar tool, an assistant can walk you thr
 - Auth.js (NextAuth) with email magic links through Resend
 - Tailwind CSS for the interface
 - The official Instagram API with Instagram Login
+- OpenRouter for the optional AI insights agent
 
 For the complete stack, application libraries, the two runtime processes, and the free services this runs on (Vercel, Neon, Redis Cloud, an Oracle Cloud always-free VM for the worker, Resend, Meta), see [docs/stack.md](docs/stack.md).
 
