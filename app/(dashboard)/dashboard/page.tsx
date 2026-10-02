@@ -7,6 +7,7 @@ import { ArrowDownRight, ArrowUpRight } from "@phosphor-icons/react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import StatusBadge from "@/components/status-badge";
+import InsightsCard from "@/components/insights-card";
 
 interface DashboardStats {
   userName: string | null;
@@ -86,8 +87,8 @@ function DashboardSkeleton() {
     <div className="space-y-4" aria-busy="true">
       <div className="panel h-[420px] animate-pulse" />
       <div className="panel h-24 animate-pulse" />
-      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr_1fr]">
-        {[0, 1, 2].map((i) => (
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
           <div key={i} className="panel h-72 animate-pulse" />
         ))}
       </div>
@@ -282,7 +283,7 @@ export default function DashboardPage() {
         </Link>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr_1fr]">
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-[1.4fr_1fr_1fr_1.1fr]">
         <section className="panel flex flex-col p-4 sm:p-6" style={{ "--i": 2 } as React.CSSProperties}>
           <h2 className="text-sm text-muted">{t("Delivery this month")}</h2>
           <div className="mt-5 grid flex-1 grid-cols-3 gap-3">
@@ -357,6 +358,8 @@ export default function DashboardPage() {
             </ul>
           )}
         </section>
+
+        <InsightsCard style={{ "--i": 5 } as React.CSSProperties} />
       </div>
     </div>
   );

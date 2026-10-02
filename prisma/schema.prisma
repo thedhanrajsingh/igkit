@@ -73,6 +73,9 @@ model Workspace {
   usagePeriodStart  DateTime @default(now())
   dmsSentThisPeriod Int      @default(0)
 
+  /// Encrypted with encryptToken; powers the dashboard AI insights card.
+  openrouterApiKey  String?
+
   zernioConnection  ZernioConnection?
   members           WorkspaceMember[]
   invitations       WorkspaceInvitation[]
@@ -84,8 +87,44 @@ model Workspace {
   webhookEvents     WebhookEvent[]
   operationalEvents OperationalEvent[]
   bioPage           BioPage?
+  aiInsights        AiInsight[]
 
   @@index([ownerId])
+}
+
+/// Feed of AI-generated dashboard insights, newest first.
+model AiInsight {
+  id          String    @id @default(cuid())
+  workspaceId String
+  text        String
+  /// The model OpenRouter's router actually picked, e.g. "openai/gpt-6-luna".
+  model       String
+  /// Tools the agent called before answering, e.g. ["list_campaigns"].
+  toolsUsed   String[]  @default([])
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  suggestions AiSuggestion[]
+
+  @@index([workspaceId, createdAt])
+}
+
+/// A campaign change the agent proposed. Nothing changes until a person applies it.
+model AiSuggestion {
+  id           String     @id @default(cuid())
+  insightId    String
+  automationId String
+  /// "dm_message" | "add_keywords" | "pause"
+  kind         String
+  /// New DM text, or the keywords to add (JSON array). Empty for pause.
+  value        String
+  reason       String
+  /// "PENDING" | "APPLIED" | "DISMISSED"
+  status       String     @default("PENDING")
+  createdAt    DateTime   @default(now())
+  insight      AiInsight  @relation(fields: [insightId], references: [id], onDelete: Cascade)
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([insightId])
 }
 
 model WorkspaceMember {
@@ -211,6 +250,7 @@ model Automation {
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
+  aiSuggestions    AiSuggestion[]
 
   @@index([workspaceId])
   @@index([instagramAccountId])
